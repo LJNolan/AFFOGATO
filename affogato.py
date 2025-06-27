@@ -41,6 +41,7 @@ from astropy.visualization.mpl_normalize import ImageNormalize
 from astropy.utils.data import get_pkg_data_filename
 from astropy.stats import sigma_clipped_stats, SigmaClip
 from astropy.convolution import convolve
+from astroquery.mast import Observations
 from photutils.segmentation import detect_threshold, detect_sources, \
                                    deblend_sources, SourceCatalog, \
                                    make_2dgaussian_kernel
@@ -1692,6 +1693,7 @@ def automate(working_dir, file, coord, size, scale, psf, frame='icrs',
       comps = input_to_guess('galfit.01')
       psf = next(comp for comp in comps if len(comp) == 3)
       loc = (psf[0], psf[1])
+   
    disp_galfit(inputdir=path, outputdir=path, save=True, name=imname,
                scale=scale[0], errmap=errmap, **kwargs)
    if backupdir is not None:
