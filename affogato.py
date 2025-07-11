@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.gridspec import GridSpec
-from astropy.io import fits
+from astropy.io import ascii, fits
 from astropy.nddata import Cutout2D
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
@@ -1614,6 +1614,36 @@ def errfile(file, outputdir, name="errmap.fits", **kwargs):
    return
 
 
+def seek_data(coords, todir, **kwargs):
+   '''
+   Pulls data as indicated from HST MAST archive, selects appropriate files for
+   use with GALFIT, and downloads them to the indicated directory, along with a
+   default PSF model.
+
+   Parameters
+   ----------
+   coords : str
+      Coordinates of object, passed to Observations.query_criteria.
+   
+   todir : str
+      Directory to which files should be saved.  This can be the GALFIT working
+      directory, but that is not recommended.
+   
+   **kwargs
+      Passed to Observations.query_criteria.
+
+   Returns
+   -------
+   None.
+
+   '''
+   obs_table = Observations.query_criteria(coordinates=coords, **kwargs)
+   ascii.write(obs_table, 'obs_tab.dat', overwrite=True)
+   #data_products = Observations.get_product_list(obs_table)
+   #manifest = Observations.download_products(data_products, download_dir=todir, flat=True, productType="SCIENCE")
+   return
+
+
 # =============================================================================
 # Useful things I tend to copy-paste
 # =============================================================================
@@ -1705,4 +1735,4 @@ def automate(working_dir, file, coord, size, scale, psf, frame='icrs',
 # =============================================================================
 # Scrap code begins here
 # =============================================================================
-bees = 1
+seek_data('317.363708 -6.170861', radius=".02 deg", instrument_name='WFC3*')
