@@ -33,7 +33,7 @@ from astropy.io import ascii, fits
 from astropy.nddata import Cutout2D
 from astropy.wcs import WCS
 from astropy.wcs.utils import skycoord_to_pixel
-from astropy.table import Table
+from astropy.table import Table, join
 from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.visualization import LogStretch, astropy_mpl_style
@@ -47,6 +47,7 @@ from photutils.segmentation import detect_threshold, detect_sources, \
                                    make_2dgaussian_kernel
 from photutils.utils import circular_footprint
 from photutils.profiles import RadialProfile
+import urllib.request
 plt.style.use(astropy_mpl_style)
 
 
@@ -1105,9 +1106,9 @@ def rad_prof_from_file(file='image', ext=0, inputdir='.', loc=(-1,-1),
    if bksb:
       bkgrd = getBkgrd(datafile, ext=ext)
       data = data - bkgrd
-   hdu = fits.open(image)
-   hdr = hdu[0].header
-   shp = tuple(hdu[0].data.shape)
+   with fits.open(image) as hdu:
+      hdr = hdu[0].header
+      shp = tuple(hdu[0].data.shape)
    radius = shp[0] * radfrac / 2
    wcs = WCS(hdr)
    if loc == (-1, -1):
@@ -1315,7 +1316,7 @@ def get_flags(file=None, fromdir='.'):
    return flags
 
 
-def get_header_param(param, ext=1, file=None, fromdir='.'):
+def get_header_param(param, ext=2, file=None, fromdir='.'):
    """
    Pulls a desired parameter from a given FITS file.
 
@@ -1343,9 +1344,9 @@ def get_header_param(param, ext=1, file=None, fromdir='.'):
    if file is None:
       filename = '%s/galfit.fits' % (fromdir)
    else:
-      filename = '%s/%s.galfit.fits' % (fromdir, file)
+      filename = '%s/%s.fits' % (fromdir, file)
    with fits.open(filename) as hdul:
-      prm = hdul[2].header[param]
+      prm = hdul[ext].header[param]
    return prm
 
 
@@ -1600,13 +1601,6 @@ def errfile(file, outputdir, name="errmap.fits", **kwargs):
    None.
 
    """
-# =============================================================================
-# This function takes a file path of a HST FITS file (file), an output
-# directory (outputdir), and an optional name (name) and makes a file which
-# is a duplicate of the given file but replacing the data under the first
-# header with the errmap produced by errmap_HST.  Kwargs are passed to
-# errmap_HST
-# =============================================================================
    errmap = errmap_HST(file, **kwargs)
    with fits.open(file) as hdul:
       hdul[1].data = errmap
@@ -1614,7 +1608,7 @@ def errfile(file, outputdir, name="errmap.fits", **kwargs):
    return
 
 
-def seek_data(coords, todir, **kwargs):
+def seek_data(coord, todir, **kwargs):
    '''
    Pulls data as indicated from HST MAST archive, selects appropriate files for
    use with GALFIT, and downloads them to the indicated directory, along with a
@@ -1637,11 +1631,162 @@ def seek_data(coords, todir, **kwargs):
    None.
 
    '''
-   obs_table = Observations.query_criteria(coordinates=coords, **kwargs)
-   ascii.write(obs_table, 'obs_tab.dat', overwrite=True)
-   #data_products = Observations.get_product_list(obs_table)
-   #manifest = Observations.download_products(data_products, download_dir=todir, flat=True, productType="SCIENCE")
-   return
+   coord_str = coord.to_string('decimal')
+   # Identify data available at given coordinate and other given information
+   obs_table = Observations.query_criteria(coordinates=coord_str, 
+                                           calib_level=3, **kwargs)
+   data_products = Observations.get_product_list(obs_table)
+   # Use only drizzled products
+   driz_products = Observations.filter_products(data_products,
+                                                calib_level=[3,4],
+                                 productSubGroupDescription="DRZ",
+                                 extension="fits", productType='SCIENCE')
+   
+   # Sort products by the exposure time  of their parent observation
+   driz_products = join(driz_products, obs_table['obs_id', 't_exptime'])
+   sorted_products = driz_products[np.argsort(driz_products['t_exptime'])[::-1]]
+   
+   # Only download the top product from above sorting
+   best_product = sorted_products[0]["dataURI"]
+   name = sorted_products[0]["productFilename"]
+   file_path = f'{todir}/{name}'
+   result = Observations.download_file(best_product, local_path=file_path)
+   # compare obs_collection, obs_id, project, and proposal_id
+   #manifest = Observations.download_products(data_products,
+   #                                          download_dir=todir, flat=True,
+   #                                          productType="SCIENCE")
+   return file_path
+
+
+def download_psf(filter_name, psf_dir):
+   '''
+   Checks if the empirical PSF FITS for a given filter exists locally; if not,
+   downloads it from STScI.
+
+   Parameters
+   ----------
+   filter_name : str
+      What filter to find a PSF for.  Currently, only WFC3 is supported.
+   
+   psf_dir : str
+      What directory to check for a PSF, and if not found, save one.
+
+   Raises
+   ------
+   ValueError
+      Alerts if filter is not supported.
+
+   Returns
+   -------
+   filepath : str
+      Path to new empirical PSF file.
+   
+   Notes
+   -----
+   TODO: Make sure this works, minimally edited from Perplexity
+
+   '''
+   base_psf_url = "https://www.stsci.edu/~jayander/HST1PASS/LIB/PSFs/STDPSFs/WFC3"
+   uvis_filters = ['F225W', 'F275W', 'F336W', 'F390W', 'F438W', 'F467M',
+                   'F555W', 'F606W', 'F775W', 'F814W', 'F850L']
+   ir_filters = ['F105W', 'F110W', 'F125W', 'F140W', 'F160W']
+   if filter_name in uvis_filters:
+      filt = 'UV'
+   elif filter_name in ir_filters:
+      filt = 'IR'
+   else:
+      raise ValueError(f"Error: Filter not supported: {filter_name}\nCurrently only WFC3 filters supported")
+   
+   base_psf_url += f'{filt}/'
+   filename = f"STDPSF_WFC3{filt}_{filter_name}.fits"
+   filepath = os.path.join(psf_dir, filename)
+   
+   if not os.path.isfile(filepath):
+       url = f"{base_psf_url}{filename}"
+       print(f"Downloading empirical PSF from {url}")
+       urllib.request.urlretrieve(url, filepath)
+   return filepath
+
+
+def get_psf(fits_filepath, psf_dir, coord):
+   '''
+   Locates and excises the empirical PSF best suited for the given location in
+   the given file as follows:
+      
+    - Checks FITS header for WFC3 and filter.
+    - Tests that the provided skycoord is within FITS bounds.
+    - Ensures empirical PSF (library) is present/downloaded.
+    - Finds grid PSF closest to given skycoord and writes it as a new FITS
+      file.
+
+   Parameters
+   ----------
+   fits_filepath : str
+      FITS file to be modelled.
+   
+   psf_dir : str
+      Directory to check and store PSF.
+   
+   coord : SkyCoord
+      Location of object to be modelled.
+
+   Raises
+   ------
+   ValueError
+      Checks for appropriate instrument, filter, and coordinate.
+
+   Returns
+   -------
+   output_path : str
+      Path to output PSF.
+
+   Notes
+   -----
+   TODO: Make sure this works, minimally edited from Perplexity
+
+   '''
+   # Open FITS file and read header info
+   with fits.open(fits_filepath) as hdul:
+      hdr0 = hdul[0].header
+      hdr1 = hdul[1].header
+      wcs = WCS(hdr1)
+      instrument = hdr0.get('INSTRUME', '').strip().upper()
+      filter_name = hdr0.get('FILTER', '').strip().upper()
+      # Get image size
+      naxis1, naxis2 = hdr1.get('NAXIS1'), hdr1.get('NAXIS2')
+   
+   # Instrument and filter check
+   if 'WFC3' not in instrument:
+      raise ValueError(f"Error: File instrument is not from WFC3 observation: {instrument}")
+   if not filter_name:
+      raise ValueError("Error: No FILTER keyword found in FITS header")
+
+   # Check coord coverage (convert to pixel, test within bounds)
+   x_pix, y_pix = skycoord_to_pixel(coord, wcs=wcs)
+   if not (0 <= x_pix < naxis1 and 0 <= y_pix < naxis2):
+      raise ValueError(f"Error: Sky coordinate {coord.to_string('hmsdms')} is outside image coverage.")
+
+   # Ensure empirical PSF FITS for this filter is present (download if necessary)
+   psf_filepath = download_psf(filter_name, psf_dir)
+
+   # Load empirical PSF grid and select the data of the central PSF
+   # TODO: It would be better to select the PSF closest to the source
+   with fits.open(psf_filepath) as psf_hdul:
+      data = psf_hdul[0].data
+      cen_psf = math.ceil(len(data)/2)
+      psf_data = data[cen_psf,:,:]
+      print(type(psf_data))
+      psf_hdr = psf_hdul[0].header
+
+   # Write new FITS
+   #best_psf = fits.PrimaryHDU(data=psf_data, header=psf_hdr)
+   output_path = f'{psf_dir}/psf.fits'
+   fits.writeto(output_path, psf_data, overwrite=True)
+   #best_psf.writeto(outputname)
+
+   print(f"Extracted PSF saved to: {output_path}")
+   return output_path
+
 
 
 # =============================================================================
@@ -1659,20 +1804,19 @@ CBcc = CB_color_cycle # shortname
 # =============================================================================
 
 
-def automate(working_dir, file, coord, size, scale, psf, frame='icrs', 
-             imname='galim.png', backupdir=None, bkpname=None, justfigs=False,
+def automate(working_dir, coord, filters, size, frame='icrs', 
+             imname='galim.png', backupdir=None, bkpname=None,
              customDir=None, customParam=None, customCons=None, useError=False,
              center_psf=False, **kwargs):
 # =============================================================================
+# OLD DESC, lightly edited
 # This function takes in the fairly clean working directory path mentioned in
-# this file's header as a string (working_dir), the path to the file containing
-# the object to be fit as a string (file), a SkyCoord object wth the location
+# this file's header as a string (working_dir), a SkyCoord object wth the location
 # of said object (coord), the desired size of the stamp to be extracted for
 # analysis, in pixels, as a list (size), the pixel scale of the image in
-# arcseconds/pixel as a list (scale), the path to the .fits file with the PSF
-# model for use in modelling, as a string (psf), an optional reference frame
+# arcseconds/pixel as a list (scale), an optional reference frame
 # specifier string (frame), an optional name to save the display image of the
-# run, as a string (imname) an optional directory where to back up the output
+# run, as a string (imname), an optional directory where to back up the output
 # of the galfit run, as a string (backupdir), and a naming convention string
 # for said backup (bkpname). One can also attempt use of error maps from the
 # input data to rescale output residuals (toggled by boolean useError). kwargs
@@ -1689,12 +1833,15 @@ def automate(working_dir, file, coord, size, scale, psf, frame='icrs',
 # options that are forced here, as does bkp_galfit.
 # =============================================================================
    path = working_dir
+   file = seek_data(coord, working_dir, radius=".02 deg", filters=filters)
+   with fits.open(file) as hdul:
+      hdu = hdul[0]
+      scale = [hdu['CDELT1'], hdu['CDELT2']]
+   get_psf(file, working_dir, coord)
    if len(size)>1:
       size = tuple(size)
    else:
       size = tuple(size[0], size[0])
-   if len(scale)==1:
-      scale = [scale[0], scale[0]]
    cut(file, coord, size, outputdir=path)
    if useError:
       errfile(file, path)
@@ -1714,7 +1861,6 @@ def automate(working_dir, file, coord, size, scale, psf, frame='icrs',
    if customCons is not None:
       custom_cons_file = '%s/%s' % (customDir, customCons)
       os.system('cp %s %s/constraints' % (custom_cons_file, working_dir))
-   cp_psf(psf, todir=path)
    run_galfit(outputdir=path)
    
    # center on psf?
@@ -1735,4 +1881,7 @@ def automate(working_dir, file, coord, size, scale, psf, frame='icrs',
 # =============================================================================
 # Scrap code begins here
 # =============================================================================
-seek_data('317.363708 -6.170861', radius=".02 deg", instrument_name='WFC3*')
+filter = 'F160W'
+coord = SkyCoord(317.363708, -6.170861, frame='icrs', unit='deg')
+file = seek_data(coord, 'testing', radius=".02 deg", filters='F160W')
+get_psf(file, 'testing', coord)

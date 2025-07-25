@@ -8,8 +8,10 @@ Author: Liam Nolan
 A collection of utilities that I copy-pasted for a while before realizing I
 should put them in one file.
 """
-from astropy.stats import SigmaClip
+from astropy.stats import SigmaClip, sigma_clipped_stats
 from astropy.table import Table
+from astropy.visualization import LogStretch
+from astropy.visualization.mpl_normalize import ImageNormalize
 from math import pi
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
@@ -435,6 +437,111 @@ def round_table_dec(table, columns, decimals):
           new_table[col] = new_table[col].apply(lambda x: round(x, dec) if pd.notnull(x) else x)
 
    return new_table
+
+
+def getBkgrd(data, sigma=3.0, npix=50):
+   """
+   Estimates the background level of the data.
+
+   Parameters
+   ----------
+   data : ndarray
+      Data for estimation.
+   
+   sigma : float, optional
+      Sigma level at which to clip data before estimating background. The 
+      default is 3.0.
+   
+   npix : int, optional
+      Number of continuous pixels required for a source which will be masked
+      before estimation. The default is 50.
+
+   Returns
+   -------
+   background : float
+      The estimated background level of the image.
+
+   """
+   sigma_clip = SigmaClip(sigma=sigma, maxiters=10)
+   threshold = detect_threshold(data, nsigma=3.0, sigma_clip=sigma_clip)
+   segment_img = detect_sources(data, threshold, npixels=npix)
+
+   footprint = circular_footprint(radius=10)
+   mask = segment_img.make_source_mask(footprint=footprint)
+
+   mean, median, std = sigma_clipped_stats(data, sigma=sigma, mask=mask)
+   return float(mean)
+
+
+def percentile_cut(data, lower=None, upper=None, truncate=True):
+   """
+   Does what I wish astropy PercentileInterval did. Returns a copy of the given
+   array with values outside bounds removed/truncated.
+
+   Parameters
+   ----------
+   data : ndarray
+      Input array.
+      
+   lower : float, optional
+      Lower percentile bound. The default is None.
+      
+   upper : float, optional
+      Upper percentile bound. The default is None.
+      
+   truncate : bool, optional
+      Toggle behavior to truncate or remove values past upper and lower bounds.
+      The default is True, truncating (setting values past the bound to bound).
+
+   Returns
+   -------
+   datat : ndarray
+      Altered array
+
+   """
+   if lower is None:
+      if upper is None:
+         return data
+   else:
+      llim = np.nanpercentile(data, lower)
+   if upper is None:
+      pass
+   else:
+      ulim = np.nanpercentile(data, upper)
+   if truncate:
+      lims = [llim, ulim]
+   else:
+      lims = [np.nan, np.nan]
+   if lower is None:
+      if upper is None:
+         return data
+      datat = np.where(data <= ulim, data, lims[1])
+   if upper is None:
+      datat = np.where(data >= llim, data, lims[0])
+   else:
+      low_data = np.where(data >= llim, data, lims[0])
+      datat = np.where(low_data <= ulim, low_data, lims[1])
+   return datat
+
+
+def quick_plot(data, title='Quick Plot'):
+   origin = 'lower'
+   cmap = 'viridis'
+   interpolation = 'nearest'
+   
+   llim, ulim = np.percentile(data, [1, 99])
+   bkgrd = getBkgrd(data)
+   norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim)
+   datat = percentile_cut(data, 1, 99)
+   
+   fig, ax = plt.subplots()
+   ax.set_axis_off()
+   ax.grid()
+   ax.set_title(title)
+   ax.imshow(datat, norm=norm, origin=origin, cmap=cmap,
+             interpolation=interpolation)
+   plt.close()
+   return
 
 
 # =============================================================================
