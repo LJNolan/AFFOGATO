@@ -524,22 +524,47 @@ def percentile_cut(data, lower=None, upper=None, truncate=True):
    return datat
 
 
-def quick_plot(data, title='Quick Plot'):
+def quick_plot(data, title='Quick Plot', scale='log', cut=False, bkgrd=False):
    origin = 'lower'
    cmap = 'viridis'
    interpolation = 'nearest'
    
    llim, ulim = np.percentile(data, [1, 99])
-   bkgrd = getBkgrd(data)
-   norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim)
-   datat = percentile_cut(data, 1, 99)
+   
+   if bkgrd:
+      data_bk = getBkgrd(data)
+   
+   if scale=='log':
+      if bkgrd:
+         norm = ImageNormalize(stretch=LogStretch(), vmin=data_bk, vmax=ulim)
+      else:
+         norm = ImageNormalize(stretch=LogStretch(), vmin=llim, vmax=ulim)
+   
+   if cut:
+      data = percentile_cut(data, 1, 99)
    
    fig, ax = plt.subplots()
    ax.set_axis_off()
    ax.grid()
    ax.set_title(title)
-   ax.imshow(datat, norm=norm, origin=origin, cmap=cmap,
-             interpolation=interpolation)
+   
+   if scale=='log':
+      ax.imshow(data, norm=norm, origin=origin, cmap=cmap,
+                interpolation=interpolation)
+   else:
+      ax.imshow(data, origin=origin, cmap=cmap, interpolation=interpolation)
+   plt.show()
+   plt.close()
+   return
+
+
+def quicker_plot(data):
+   fig, ax = plt.subplots()
+   ax.set_axis_off()
+   ax.grid()
+   ax.set_title('Quick Plot')
+   ax.imshow(data, origin='lower', cmap='viridis')
+   plt.show()
    plt.close()
    return
 

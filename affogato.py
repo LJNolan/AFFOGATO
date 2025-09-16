@@ -47,7 +47,9 @@ from photutils.segmentation import detect_threshold, detect_sources, \
                                    make_2dgaussian_kernel
 from photutils.utils import circular_footprint
 from photutils.profiles import RadialProfile
+from scipy.ndimage import convolve
 import urllib.request
+
 plt.style.use(astropy_mpl_style)
 
 
@@ -580,7 +582,6 @@ def get_guesses(inputdir='.', double=False, masking=False):
    
    comps : list
       Complex list of estimates expected by make_galfit_input().
-
    """
    image = '%s/image.fits' % inputdir
    data = dataPull(image) 
@@ -800,7 +801,8 @@ def disp_galfit(inputdir='.', outputdir='.', save=True, name='galim.png',
    """
    if masking:
       mask = np.ma.make_mask(dataPull('%s/mask.fits' % inputdir))
-      if str(type(mask)) == "<class 'numpy.bool_'>":
+      if (str(type(mask)) == "<class 'numpy.bool_'>" or
+          str(type(mask)) == "<class 'numpy.bool'>"):
          mask = None
    else:
       mask = None
@@ -913,6 +915,8 @@ def disp_galfit(inputdir='.', outputdir='.', save=True, name='galim.png',
    
    if save:
       plt.savefig('%s/%s' % (outputdir, name), bbox_inches='tight')
+   else:
+      plt.show()
    plt.close()
    return
 
@@ -1174,6 +1178,7 @@ def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
       The desired radial profile at the given radii.
 
    """
+   
    xycen = skycoord_to_pixel(coord, wcs=wcs)
    if mask is None:
       rp = RadialProfile(data, xycen, radii)
@@ -1421,7 +1426,7 @@ def from_latex(fromdir='.', tabname='fit.tab', delval=None, masked=True):
    return tab
 
 
-def percentile_cut(data, lower=None, upper=None, truncate=True):
+def percentile_cut(data, lower=None, upper=None, truncate=True, mask=None):
    """
    Does what I wish astropy PercentileInterval did. Returns a copy of the given
    array with values outside bounds removed/truncated.
@@ -1440,6 +1445,9 @@ def percentile_cut(data, lower=None, upper=None, truncate=True):
    truncate : bool, optional
       Toggle behavior to truncate or remove values past upper and lower bounds.
       The default is True, truncating (setting values past the bound to bound).
+   
+   mask : ndarray, optional
+      Boolean mask of pixels to ignore when calculating.
 
    Returns
    -------
@@ -1447,28 +1455,41 @@ def percentile_cut(data, lower=None, upper=None, truncate=True):
       Altered array
 
    """
+   if mask is None:
+      wdata = data.copy()
+   else:
+      wdata = data[~mask].copy()
+   wdata.setflags(write=True)
    if lower is None:
       if upper is None:
          return data
+      llim = 1
    else:
-      llim = np.nanpercentile(data, lower)
+      llim = np.nanpercentile(wdata, lower)
    if upper is None:
-      pass
+      ulim = 1
    else:
-      ulim = np.nanpercentile(data, upper)
+      ulim = np.nanpercentile(wdata, upper)
    if truncate:
       lims = [llim, ulim]
    else:
       lims = [np.nan, np.nan]
-   if lower is None:
-      if upper is None:
-         return data
-      datat = np.where(data <= ulim, data, lims[1])
-   if upper is None:
-      datat = np.where(data >= llim, data, lims[0])
+   if mask is None:
+      if lower is None:
+         datat = np.where(data > ulim, lims[1], data)
+      elif upper is None:
+         datat = np.where(data < llim, lims[0], data)
+      else:
+         low_data = np.where(data < llim, lims[0], data)
+         datat = np.where(low_data > ulim, lims[1], low_data)
    else:
-      low_data = np.where(data >= llim, data, lims[0])
-      datat = np.where(low_data <= ulim, low_data, lims[1])
+      if lower is None:
+         datat = np.where((data > ulim) & ~mask, lims[1], data)
+      elif upper is None:
+         datat = np.where((data < llim) & ~mask, lims[0], data)
+      else:
+         low_data = np.where((data < llim) & ~mask, lims[0], data)
+         datat = np.where((low_data > ulim) & ~mask, lims[1], low_data)
    return datat
 
 
@@ -1521,8 +1542,24 @@ def errmap_HST(file, box_size=100, purity=0.05, overlap=0.2, nbox_min=20):
    image = get_pkg_data_filename(file)
    data_sci = fits.getdata(image, ext=1)
    data_wht = fits.getdata(image, ext=2)
-   fsigma = data_wht ** -0.5
-   fsigma_clip = percentile_cut(fsigma, 1, 99) # TODO: Fix
+   
+   # Mask input data of connected exact zeroes - this is likely to
+   # be outside the true image.
+   zeros_mask = np.zeros_like(data_sci)
+   kernel = np.array([[1, 1, 1],
+                      [1, 0, 1],
+                      [1, 1, 1]])
+   # Find all zero pixels in the image
+   zero_pixels = (data_sci == 0)
+   # Count zero neighbors for each pixel
+   neighbor_zero_count = convolve(zero_pixels.astype(int), kernel,
+                                  mode='constant', cval=0)
+   selected_pixels = zero_pixels & (neighbor_zero_count >= 2)
+   zeros_mask[selected_pixels] = 1
+   zeros_mask = zeros_mask.astype(bool)
+   
+   fsigma = np.sqrt(data_wht) ** -1
+   fsigma_clip = percentile_cut(fsigma, 1, 99, mask=zeros_mask) # TODO: Fix
    
    rng = np.random.default_rng()
    
@@ -1532,6 +1569,9 @@ def errmap_HST(file, box_size=100, purity=0.05, overlap=0.2, nbox_min=20):
    segment_img = detect_sources(data_sci, threshold, npixels=50)
    footprint = circular_footprint(radius=10)
    mask = segment_img.make_source_mask(footprint=footprint)
+   
+   # Add to source mask the zeros-mask
+   mask = mask | zeros_mask
    
    # Draw regions for stats
    overmask = np.zeros_like(mask)
@@ -1804,44 +1844,89 @@ CBcc = CB_color_cycle # shortname
 # =============================================================================
 
 
-def automate(working_dir, coord, filters, size, frame='icrs', 
+def automate(working_dir, coord, filters, size,
              imname='galim.png', backupdir=None, bkpname=None,
              customDir=None, customParam=None, customCons=None, useError=False,
-             center_psf=False, **kwargs):
-# =============================================================================
-# OLD DESC, lightly edited
-# This function takes in the fairly clean working directory path mentioned in
-# this file's header as a string (working_dir), a SkyCoord object wth the location
-# of said object (coord), the desired size of the stamp to be extracted for
-# analysis, in pixels, as a list (size), the pixel scale of the image in
-# arcseconds/pixel as a list (scale), an optional reference frame
-# specifier string (frame), an optional name to save the display image of the
-# run, as a string (imname), an optional directory where to back up the output
-# of the galfit run, as a string (backupdir), and a naming convention string
-# for said backup (bkpname). One can also attempt use of error maps from the
-# input data to rescale output residuals (toggled by boolean useError). kwargs
-# are passed to disp_galfit.
-#
-# Note that both working_dir and file need to be as relative to the current
-# directory - that which this file is in. Also, size and scale can be of 
-# lengths 1 or 2 - length 1 implies square dimensions.
-# 
-# This function is my attempt at writing a general-use automatic pipeline of
-# the other functions in this wrapper.  It is not exhaustive, and leaves out a
-# number of utilities and assumes a default behavior with no options for
-# configuration.  For example, disp_galfit has a large number of customization
-# options that are forced here, as does bkp_galfit.
-# =============================================================================
+             double=False, center_psf=False, **kwargs):
+   '''
+   This function is my attempt at writing a general-use automatic pipeline of
+   the other functions in this wrapper.  It is not exhaustive, and leaves out a
+   number of utilities and assumes a default behavior with no options for
+   configuration.  For example, disp_galfit has a large number of customization
+   options that are forced here, as does bkp_galfit.
+
+   Parameters
+   ----------
+   working_dir : str
+      Path to working directory where temporary files are stored, relative to
+      the current directory.
+   
+   coord : SkyCoord
+      Location of target object.
+   
+   filters : str
+      Filter to pull data for. Currently only works with one filter.
+   
+   size : int or tuple of ints
+      Size, in pixels, of cutout to make around target source. Int implies a
+      square cutout.
+   
+   imname : str, optional
+      Name of output image. The default is 'galim.png'.
+   
+   backupdir : str, optional
+      Directory to store output files. The default is None.
+   
+   bkpname : str, optional
+      Naming convention for output files - gets prepended. The default is None.
+   
+   customDir : str, optional
+      Directory path to find ```customParam``` and ```customCons```. The
+      default is None.
+   
+   customParam : str, optional
+      File name to find custom GALFIT parameters rather than deriving them
+      analytically. The default is None.
+   
+   customCons : str, optional
+      File name to find custom GALFIT parameters rather than a default. The
+      default is None.
+   
+   useError : bool, optional
+      Toggle to use image error map to scale residuals. The default is False.
+   
+   double : bool, optional
+      Adds a central PSF component - otherwise all components are Sersic
+      profiles. This is typical for AGN science. The default is False.
+   
+   center_psf : bool, optional
+      Toggle to center the radial profile on the PSF component, if used
+      (toggled by ```double```). The default is False.
+   
+   **kwargs
+      Passed to disp_galfit().
+
+   Returns
+   -------
+   None.
+   '''
+   # I can't manage variable names to save my life.  Convert size if needed.
    path = working_dir
-   file = seek_data(coord, working_dir, radius=".02 deg", filters=filters)
-   with fits.open(file) as hdul:
-      hdu = hdul[0]
-      scale = [hdu['CDELT1'], hdu['CDELT2']]
-   get_psf(file, working_dir, coord)
    if len(size)>1:
       size = tuple(size)
    else:
       size = tuple(size[0], size[0])
+   
+   # Download best data at coordinate, and then appropriate PSF
+   file = seek_data(coord, working_dir, radius=".02 deg", filters=filters)
+   get_psf(file, working_dir, coord)
+   
+   # Pull appropriate pixel scale from file
+   with fits.open(file) as hdul:
+      hdu = hdul[1]
+      scale = [hdu.header['CDELT1'], hdu.header['CDELT2']]
+   
+   # Cut stamp, and appropriate error stamp if toggled.
    cut(file, coord, size, outputdir=path)
    if useError:
       errfile(file, path)
@@ -1850,12 +1935,16 @@ def automate(working_dir, coord, filters, size, frame='icrs',
       errmap = dataPull('%s/errmap_cut.fits' % path)
    else:
       errmap = None
-   size, zp, sky, comps = get_guesses(path, double=True, masking=True)
+   
+   # Generate quick guesses of parameters for GALFIT, and make param file.
+   # Also makes a mask file.
+   size, zp, sky, comps = get_guesses(path, double=double, masking=True)
    # overwrite param file with custom file if present
    if customDir is not None:
       custom_param_file = '%s/%s' % (customDir, customParam)
       comps = input_to_guess(custom_param_file)
    
+   # Generate GALFIT input and constraint files
    make_galfit_input(size, zp, scale, sky, comps, outputdir=path)
    # overwrite constraint file with custom constraints if present
    if customCons is not None:
@@ -1863,15 +1952,18 @@ def automate(working_dir, coord, filters, size, frame='icrs',
       os.system('cp %s %s/constraints' % (custom_cons_file, working_dir))
    run_galfit(outputdir=path)
    
-   # center on psf?
+   # If using a central PSF, check to center the radial profile on it.
    loc = (-1, -1)
-   if center_psf:
-      comps = input_to_guess('galfit.01')
+   if double and center_psf:
+      comps = input_to_guess(path + '/galfit.01')
       psf = next(comp for comp in comps if len(comp) == 3)
       loc = (psf[0], psf[1])
    
+   # Produce output image.
    disp_galfit(inputdir=path, outputdir=path, save=True, name=imname,
-               scale=scale[0], errmap=errmap, **kwargs)
+               scale=scale[0], errmap=errmap, loc=loc, **kwargs)
+   
+   # Back up relevant files.
    if backupdir is not None:
       bkp_galfit(backupdir, fromdir=path, name=bkpname, gal=True, slices=True, 
                  inpt=False, log=False, image=imname)
@@ -1881,7 +1973,10 @@ def automate(working_dir, coord, filters, size, frame='icrs',
 # =============================================================================
 # Scrap code begins here
 # =============================================================================
-filter = 'F160W'
+filters = 'F160W'
+working_dir = 'testing'
+size = (200, 200)
 coord = SkyCoord(317.363708, -6.170861, frame='icrs', unit='deg')
-file = seek_data(coord, 'testing', radius=".02 deg", filters='F160W')
-get_psf(file, 'testing', coord)
+automate(working_dir, coord, filters, size, backupdir='backup',
+         bkpname='test', useError=True, double=True, center_psf=True, 
+         masking=True, psfsub=True, radprof=True, flx=False, radfrac=0.3)
