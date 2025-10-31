@@ -10,12 +10,12 @@ authors:
     orcid: 0000-0001-5769-0821
     corresponding: true
     affiliation: 1
-  - name: Yu-Ching Chen
-    orcid: 0000-0002-9932-1298
-    affiliation: "1, 2"
   - name: Ming-Yang Zhuang
     orcid: 0000-0001-5105-2837
     affiliation: 1
+  - name: Yu-Ching Chen
+    orcid: 0000-0002-9932-1298
+    affiliation: "1, 2"
   - name: Xin Liu
     orcid: 0000-0003-0049-5210
     affiliation: "1, 3"
@@ -31,45 +31,49 @@ bibliography: paper.bib
 
 # Optional fields if submitting to a AAS journal too, see this blog post:
 # https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
-aas-doi: 10.3847/xxxxx <- update this with the DOI from AAS once you know it.
-aas-journal: Astrophysical Journal <- The name of the AAS journal.
+aas-doi: 10.3847/1538-4357/adec95
+aas-journal: Astrophysical Journal
 ---
 
 # Summary
 
-Non-expert-aimed summary.
-
-The forces on stars, galaxies, and dark matter under external gravitational
-fields lead to the dynamical evolution of structures in the universe. The orbits
-of these bodies are therefore key to understanding the formation, history, and
-future state of galaxies. The field of "galactic dynamics," which aims to model
-the gravitating components of galaxies to study their structure and evolution,
-is now well-established, commonly taught, and frequently used in astronomy.
-Aside from toy problems and demonstrations, the majority of problems require
-efficient numerical tools, many of which require the same base code (e.g., for
-performing numerical orbit integration).
+Nearly all galaxies contain supermassive black holes at their centers, and some
+of these black holes accrete mass rapidly and emit powerful jets, the brightest
+sources in the universe.  These systems are called Active Galactic Nuclei (AGN).
+Their extremely bright light overlaps with and obscures the light of their host
+galaxy, making studies of such galaxies more difficult without a mechanism to
+subtract the AGN light.  This is one of many cases in which one employs image
+decomposition to model and separate the components of an astronomical image.  A
+few well-established programs have become the best tools for this task, but
+remain difficult to automate without external 'wrapper' programs.
 
 # Statement of need
 
-`Gala` is an Astropy-affiliated Python package for galactic dynamics. Python
-enables wrapping low-level languages (e.g., C) for speed without losing
-flexibility or ease-of-use in the user-interface. The API for `Gala` was
-designed to provide a class-based and user-friendly interface to fast (C or
-Cython-optimized) implementations of common operations such as gravitational
-potential and force evaluation, orbit integration, dynamical transformations,
-and chaos indicators for nonlinear dynamics. `Gala` also relies heavily on and
-interfaces well with the implementations of physical units and astronomical
-coordinate systems in the `Astropy` package [@astropy] (`astropy.units` and
-`astropy.coordinates`).
+gAlactic Faint Feature extractiOn with GALFIT-bAsed Tools in pythOn (`AFFOGATO`)
+is a Python package which acts as a wrapper for the popular image decomposition
+tool `GALFIT` *CONSIDER CHANGING TO GALFITM* [@Peng:2002; @Peng:2010] with a
+particular eye towards studies of AGN.  `GALFIT` is intentionally structured to
+be automated using external scripts, as effective usage requires modelling begin
+with well-motivated initial guesses of model parameters (e.g., Sersic index and
+magnitude for a Service profile), and these can vary widely across different use
+cases. However, some general functions are possible to write in Python, which has
+become the dominant language for most tasks in astronomy, especially for
+early-career scientists.
 
-`Gala` was designed to be used by both astronomical researchers and by
-students in courses on gravitational dynamics or astronomy. It has already been
-used in a number of scientific publications [@Pearson:2017] and has also been
-used in graduate courses on Galactic dynamics to, e.g., provide interactive
-visualizations of textbook material [@Binney:2008]. The combination of speed,
-design, and support for Astropy functionality in `Gala` will enable exciting
-scientific explorations of forthcoming data releases from the *Gaia* mission
-[@gaia] by students and experts alike.
+`AFFOGATO` uses parameter estimation from the `photutils` package [@photutils] to
+facilitate automatic "blind" usage of `GALFIT` without manual determination of
+initial guesses, and producing informative and aesthetically-pleasing figures. 
+While manual fine-tuning remains necessary in general for high-confidence scientific
+results (and is possible using the same wrapper functions), this automation greatly
+speeds decomposition of medium to large samples of images. In addition to this
+general-use functionality, we include a specific example implementation for the
+study of AGN host galaxies with HST, which at its highest level only requires the
+user to specify the coordinates of an AGN and the desired filter and the utility
+automatically downloads the best archived HST data, an appropriate PSF model,
+performs the decomposition, and produces an appropriate figure.  This will enable
+extremely rapid analysis in studies interested in the underlying features of AGN host
+galaxies.  More generally, `AFFOGATO` acts as a well-documented entry point to
+development of one's own `GALFIT` wrapper in Python.
 
 # Citations
 

@@ -53,6 +53,10 @@ import urllib.request
 plt.style.use(astropy_mpl_style)
 
 
+class NoWCSError(Exception):
+    pass
+
+
 def cut(filename, position, size, ext=1, outputdir=".", outputname=None):
    """
    Create a cutout image of given ``size`` at given ``position`` and save it
@@ -116,9 +120,10 @@ def cut(filename, position, size, ext=1, outputdir=".", outputname=None):
       hdr_new['GAIN'] = 1 # Only true if data is in units of electrons
       hdr_new['NCOMBINE'] = 1 # Only true if EXPTIME is over all exposures
       hdr_new['EXPTIME'] = hdul[0].header['EXPTIME']
-      hdr_new['photzpt'] = hdul[0].header['photzpt']
-      hdr_new['photflam'] = hdul[0].header['photflam']
-      hdr_new['photplam'] = hdul[0].header['photplam']
+      # TODO: Check if this switch 0 -> ext works for all files
+      hdr_new['photzpt'] = hdul[ext].header['photzpt']
+      hdr_new['photflam'] = hdul[ext].header['photflam']
+      hdr_new['photplam'] = hdul[ext].header['photplam']
       ## drizzle info
       hdr_new['fscale'] = hdul[0].header['D001SCAL']
    
@@ -814,6 +819,7 @@ def disp_galfit(inputdir='.', outputdir='.', save=True, name='galim.png',
    if psfsub:
       cols += 1
    arrange = 1+math.ceil(len(compnum)/cols)
+   print(cols, arrange)
    if thorough:
       fig = plt.figure(figsize=(6*cols, 6 * arrange))
    else:
@@ -1686,11 +1692,39 @@ def seek_data(coord, todir, **kwargs):
    driz_products = join(driz_products, obs_table['obs_id', 't_exptime'])
    sorted_products = driz_products[np.argsort(driz_products['t_exptime'])[::-1]]
    
-   # Only download the top product from above sorting
-   best_product = sorted_products[0]["dataURI"]
-   name = sorted_products[0]["productFilename"]
-   file_path = f'{todir}/{name}'
-   result = Observations.download_file(best_product, local_path=file_path)
+   # Only download the top product from above sorting, but check if that
+   # product has proper WCS information.
+   n = 0
+   file_num = len(sorted_products)
+   while True:
+      best_product = sorted_products[n]["dataURI"]
+      name = sorted_products[n]["productFilename"]
+      file_path = f'{todir}/{name}'
+      result = Observations.download_file(best_product, local_path=file_path)
+      try:
+         with fits.open(file_path) as hdul:
+            hdu = hdul[1]
+            scale = [hdu.header['CDELT1'], hdu.header['CDELT2']]
+      except KeyError:
+         try:
+            with fits.open(file_path) as hdul:
+               hdu = hdul[1]
+               cd1 = [hdu.header['CD1_1'], hdu.header['CD1_2']]
+               cd2 = [hdu.header['CD2_1'], hdu.header['CD2_2']]
+               scale = [((cd1[0])**2 + (cd2[0])**2)**0.5,
+                        ((cd1[1])**2 + (cd2[1])**2)**0.5]
+         except KeyError:
+            print(f'''The automatically selected best MAST FITS file ({n+1}/
+                  {file_num}) lacks proper WCS information.  This file can be 
+                  found at:\n{file_path}\n and should be inspected.''')
+            n += 1
+            if n == file_num:
+               raise NoWCSError(f'''No files were found in MAST containing 
+                                appropriate WCS information. This is unusual.''')
+            else:
+               print('Trying next file...')
+            continue
+      break
    # compare obs_collection, obs_id, project, and proposal_id
    #manifest = Observations.download_products(data_products,
    #                                          download_dir=todir, flat=True,
@@ -1924,7 +1958,14 @@ def automate(working_dir, coord, filters, size,
    # Pull appropriate pixel scale from file
    with fits.open(file) as hdul:
       hdu = hdul[1]
-      scale = [hdu.header['CDELT1'], hdu.header['CDELT2']]
+      try:
+         scale = [hdu.header['CDELT1'], hdu.header['CDELT2']]
+      except KeyError:
+         cd1 = [hdu.header['CD1_1'], hdu.header['CD1_2']]
+         cd2 = [hdu.header['CD2_1'], hdu.header['CD2_2']]
+         scale = [((cd1[0])**2 + (cd2[0])**2)**0.5,
+                  ((cd1[1])**2 + (cd2[1])**2)**0.5]
+         scale = [i*3600 for i in scale] #converts from deg/pix to arcsec/pix
    
    # Cut stamp, and appropriate error stamp if toggled.
    cut(file, coord, size, outputdir=path)
@@ -1976,7 +2017,8 @@ def automate(working_dir, coord, filters, size,
 filters = 'F160W'
 working_dir = 'testing'
 size = (200, 200)
-coord = SkyCoord(317.363708, -6.170861, frame='icrs', unit='deg')
+coord = SkyCoord(212.5857, 36.723, frame='icrs', unit='deg')
+# 212.5857, 36.723 is my best AGN with spiral arms, but produces an odd fig
 automate(working_dir, coord, filters, size, backupdir='backup',
          bkpname='test', useError=True, double=True, center_psf=True, 
          masking=True, psfsub=True, radprof=True, flx=False, radfrac=0.3)
