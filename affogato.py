@@ -6,13 +6,13 @@ Original File Created on Mon Feb 20 1:32:29 2023
 
 Author: Liam Nolan
 
-AFFOGATO: gAlactic Faint Feature extractiOn with GALFIT-bAsed Tools in pythOn
+AFFOGATO: gAlactic Faint Feature extractiOn with GALFITM-bAsed Tools in pythOn
 
 Based in large part on Tony Chen's GALFIT wrapper, and suggestions from
 Ming-Yang Zhuang.
 
 General Notes for Use:
-These wrapper functions generally assume all of the GALFIT work is being done 
+These wrapper functions generally assume all of the GALFITM work is being done 
 in a fairly clean directory, where files are not being saved permanently, 
 instead being backed up somewhere else if needed, and other intermediate 
 processes are discarded. I've tried to make these functions as general as is
@@ -20,6 +20,12 @@ practical, and noted in comments where the code becomes specific to my use
 case.
 All filenames should be as relative to the location where this wrapper is
 stored unless specified otherwise.
+
+NOTA BENE: On my Mac, the GALFITM executable did not work until placing it in
+the src folder of Anaconda3, and only then did it throw an error stating it was
+being blocked by the secuity software of my Mac.  I was then able to override
+that block in the Privacy & Security settings.  I provide options for where to
+send your download, but your mileage may vary.
 """
 
 import math
@@ -139,21 +145,21 @@ def cut(filename, position, size, ext=1, outputdir=".", outputname=None):
    return
 
 
-def run_galfit(galpath='me', outputdir='.'):
+def run_galfitm(galpath='me', outputdir='.'):
    """
-   Runs GALFIT off of the file "``outputdur``/input" in option 3 mode, which
+   Runs GALFITM off of the file "``outputdir``/input" in option 3 mode, which
    creates a FITS image where each slice is a model component, called
    "subcomps.fits". This will clear all previous runs, but will preserve the
-   fit log.  Use bkp_galfit() to back up the run.
+   fit log.  Use bkp_galfitm() to back up the run.
 
    Parameters
    ----------
    galpath : string, optional
-      Directory path of where the user has GALFIT installed. The default is 
+      Directory path of where the user has GALFITM installed. The default is 
       'me', which directs to the installation on my current computer.
    
    outputdir : string, optional
-      Directory path of where to run GALFIT. The default is '.'.
+      Directory path of where to run GALFITM. The default is '.'.
 
    Returns
    -------
@@ -161,23 +167,23 @@ def run_galfit(galpath='me', outputdir='.'):
    
    Notes
    -----
-   Produces and overwrites galfit.fits, subcomps.fits, fit.tab, and appends to
+   Produces and overwrites galfitm.fits, subcomps.fits, fit.tab, and appends to
    fit.log.
 
    """
    if galpath == 'me':
-      galpath = '/Users/ljnolan/src/galfit'
-   os.system("cd %s ; rm -f galfit.*" % outputdir)
+      galpath = '/Users/ljnolan/opt/anaconda3/bin/galfitm'
+   os.system("cd %s ; rm -f galfitm.*" % outputdir)
    os.system("cd %s ; " % outputdir + galpath + " input")
-   os.system("cd %s ; " % outputdir + galpath + " galfit.01 -o3")
+   os.system("cd %s ; " % outputdir + galpath + " galfitm.01 -o3")
    return
 
 
-def bkp_galfit(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
+def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
                log=False, image=None):
    """
-   Backs up the outputs of GALFIT, with multiple toggles for different outputs
-   to back up. By default, backs up the normal GALFIT outputs plus
+   Backs up the outputs of GALFITM, with multiple toggles for different outputs
+   to back up. By default, backs up the normal GALFITM outputs plus
    "subcomps.fits".
 
    Parameters
@@ -188,14 +194,14 @@ def bkp_galfit(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
    
    fromdir : string, optional
       Directory from which files come - this should be the directory where
-      run_galfit() was run. The default is '.'.
+      run_galfitm() was run. The default is '.'.
    
    name : string, optional
-      String to prepend to GALFIT files - typically something that identifies
+      String to prepend to GALFITM files - typically something that identifies
       the run/object. The default is '', which results in no prepending.
    
    gal : boolean, optional
-      Toggle to back up 'galfit.01' and 'galfit.fits'. The default is True.
+      Toggle to back up 'galfitm.01' and 'galfitm.fits'. The default is True.
    
    slices : boolean, optional
       Toggle to back up 'subcomps.fits'. The default is True.
@@ -219,9 +225,9 @@ def bkp_galfit(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
    if name != '':
       name += '.'
    if gal:
-      os.system("cd %s ; cp galfit.01 %s/%sgalfit.01" % (fromdir, todir, 
+      os.system("cd %s ; cp galfitm.01 %s/%sgalfitm.01" % (fromdir, todir, 
                                                           name))
-      os.system("cd %s ; cp galfit.fits %s/%sgalfit.fits" % (fromdir, todir, 
+      os.system("cd %s ; cp galfitm.fits %s/%sgalfitm.fits" % (fromdir, todir, 
                                                               name))
    if slices:
       os.system("cd %s ; cp subcomps.fits %s/%ssubcomps.fits" % (fromdir, 
@@ -240,7 +246,7 @@ def bkp_galfit(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
 
 def clearlog(path='.'):
    """
-   Deletes the current GALFIT log file "fit.log" in ``path``
+   Deletes the current GALFITM log file "fit.log" in ``path``
 
    Parameters
    ----------
@@ -316,10 +322,11 @@ def getBkgrd(image, ext=0, sigma=3.0, npix=50):
    return float(mean)
 
 
-def make_galfit_input(img_size, zp, img_scale, sky, comps, outputdir="."):
+def make_galfitm_input(img_size, zp, img_scale, sky, comps, outputdir=".",
+                       fsf=4):
    """
    Takes in summary information on the current image to be operated upon, and
-   generates input files for GALFIT.
+   generates input files for GALFITM.
 
    Parameters
    ----------
@@ -347,6 +354,10 @@ def make_galfit_input(img_size, zp, img_scale, sky, comps, outputdir="."):
    outputdir : str, optional
       Where to save the output file. The default is ".", i.e. the working
       directory.
+   
+   fsf : int, optional
+      Fine-sampling factor for the PSF, relative to the data.  The default is
+      4, appropriate for the standard PSF used in the quick-look functions.
 
    Returns
    -------
@@ -355,7 +366,7 @@ def make_galfit_input(img_size, zp, img_scale, sky, comps, outputdir="."):
    Notes
    -----
    Produces two files, 'input' and constraints', by default in the current
-   directory, suitable for running GALFIT.'
+   directory, suitable for running GALFITM.'
    
    I make a number of assumptions/simplifications, suitable for the purposes of
    my work, but perhaps would be undesireable for other purposes.  I enumerate
@@ -383,12 +394,12 @@ def make_galfit_input(img_size, zp, img_scale, sky, comps, outputdir="."):
    
    string_init = """
 ===============================================================================
-# IMAGE and GALFIT CONTROL PARAMETERS
+# IMAGE and GALFITM CONTROL PARAMETERS
 A) image.fits      # Input data image (FITS file)
-B) galfit.fits     # Output data image block
-C) None            # Sigma image name (made from data if blank or "none")
+B) galfitm.fits     # Output data image block
+C) none            # Sigma image name (made from data if blank or "none")
 D) psf.fits        # Input PSF image and (optional) diffusion kernel
-E) 3               # PSF fine sampling factor relative to data
+E) %i               # PSF fine sampling factor relative to data
 F) mask.fits       # Bad pixel mask (FITS image or ASCII coord list)
 G) constraints     # File with parameter constraints (ASCII file) 
 H) 1 %i 1 %i     # Image region to fit (xmin xmax ymin ymax)
@@ -418,7 +429,7 @@ P) 0               # Choose: 0=optimize, 1=model, 2=imgblock, 3=subcomps
  0) %s             # object type
  1) %0.2f %0.2f  1 1  # position x, y        [pixel]
  3) %0.2f     1        # total magnitude
- 4) %0.2f     1        # length
+ 4) %0.2f     1        # effective radius
  5) %0.2f      1        # index
  9) %0.2f      1        # axis ratio
  10) %0.2f    1        # PA
@@ -464,8 +475,8 @@ P) 0               # Choose: 0=optimize, 1=model, 2=imgblock, 3=subcomps
                                                 c)
 
    f = open("%s/input" % outputdir,"w")
-   f.write(string_init % (img_size[0], img_size[1], img_size[0], img_size[1], 
-                          zp, img_scale[0], img_scale[1]))
+   f.write(string_init % (fsf, img_size[0], img_size[1], img_size[0],
+                          img_size[1], zp, img_scale[0], img_scale[1]))
    f.write(string_sky % sky)
    f.write(string_components)
    f.close()
@@ -479,14 +490,14 @@ P) 0               # Choose: 0=optimize, 1=model, 2=imgblock, 3=subcomps
 
 def input_to_guess(filename):
    """
-   Reads in a GALFIT input file ``filename`` and returns an array for use as
-   "comps" in make_galfit_input(). This is only helpful if you have your best
+   Reads in a GALFITM input file ``filename`` and returns an array for use as
+   "comps" in make_galfitm_input(). This is only helpful if you have your best
    guesses (perhaps from manual tinkering) in an input file.
 
    Parameters
    ----------
    filename : TYPE
-      File path of desired GALFIT input file.
+      File path of desired GALFITM input file.
 
    Returns
    -------
@@ -556,7 +567,7 @@ def input_to_guess(filename):
 def get_guesses(inputdir='.', double=False, masking=False):
    """
    Interprets the file "input.fits" to produce best guesses expected by
-   make_galfit_input().  Does not return img_scale, and the sky value returned
+   make_galfitm_input().  Does not return img_scale, and the sky value returned
    is from getBlkgrd() with default parameters
 
    Parameters
@@ -571,8 +582,8 @@ def get_guesses(inputdir='.', double=False, masking=False):
       
    masking : bool, optional
       Toggle - if True, then any source not touching the central source will be
-      masked, and a file called 'mask.fits' will be created for use with GALFIT
-      in the given directory. The default is False.
+      masked, and a file called 'mask.fits' will be created for use with
+      GALFITM in the given directory. The default is False.
 
    Returns
    -------
@@ -586,7 +597,7 @@ def get_guesses(inputdir='.', double=False, masking=False):
       Background level from getBkgrd().
    
    comps : list
-      Complex list of estimates expected by make_galfit_input().
+      Complex list of estimates expected by make_galfitm_input().
    """
    image = '%s/image.fits' % inputdir
    data = dataPull(image) 
@@ -748,18 +759,18 @@ def write_mask(mask, inputdir="."):
    return
 
 
-def disp_galfit(inputdir='.', outputdir='.', save=True, name='galim.png',
+def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
                 thorough=False, masking=False, psfsub=False, radprof=False,
                 scale=0.0, errmap=None, **kwargs):
    """
-   Takes in GALFIT output files to produce an adjustable summary figure - 
+   Takes in GALFITM output files to produce an adjustable summary figure - 
    capable of displaying data, fits, fit components, residuals, and radial
    profiles.
 
    Parameters
    ----------
    inputdir : Tstr, optional
-      File location where to draw files (i.e. where GALFIT was run). The
+      File location where to draw files (i.e. where GALFITM was run). The
       default is '.'.
    
    outputdir : str, optional
@@ -839,10 +850,10 @@ def disp_galfit(inputdir='.', outputdir='.', save=True, name='galim.png',
       # Data processing and cleaning; if n == 3 & psfsub, data is passed down
       # to n == 4
       if n < 4:
-         data = dataPull('%s/galfit.fits' % inputdir, n)
+         data = dataPull('%s/galfitm.fits' % inputdir, n)
          llim, ulim = np.percentile(data, [1, 99])
          if n == 1:
-            bkgrd = getBkgrd('%s/galfit.fits' % inputdir, n)
+            bkgrd = getBkgrd('%s/galfitm.fits' % inputdir, n)
             norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim)
             if psfsub:
                holdover = data - dataPull('%s/subcomps.fits' % inputdir,
@@ -931,7 +942,7 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
             save=False, name='radprof.png', flx=False, res=True, ylim=30.,
             **kwargs):
    """
-   Generates a raidal profile from the most recent GALFIT run in the given
+   Generates a raidal profile from the most recent GALFITM run in the given
    figure.
 
    Parameters
@@ -950,7 +961,7 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
       List of component nams for legend. The default is ['unknown'].
       
    inputdir : str, optional
-      Directory where to pull GALFIT data. The default is '.'.
+      Directory where to pull GALFITM data. The default is '.'.
       
    outputdir : str, optional
       Directory where to save just the radial profile if toggled by ```save```.
@@ -1069,7 +1080,7 @@ def rad_prof_from_file(file='image', ext=0, inputdir='.', loc=(-1,-1),
    Utility wrapper for radial_profile() which pulls data and header
    information, and sets other inputs. Header information will always be pulled
    from 'image.fits', but the data file can be changed (e.g. for use with 
-   GALFIT subcomps).
+   GALFITM subcomps).
 
    Parameters
    ----------
@@ -1107,7 +1118,7 @@ def rad_prof_from_file(file='image', ext=0, inputdir='.', loc=(-1,-1),
    
    Notes
    -----
-   Background subtraction is unnecessary when using GALFIT subcomps.
+   Background subtraction is unnecessary when using GALFITM subcomps.
 
    """
    datafile = '%s/%s.fits' % (inputdir, file)
@@ -1200,7 +1211,7 @@ def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
 
 def latex_tab(inputdir='.'):
    """
-   Pulls the fit information from the most recent run (in galfit.01) and store
+   Pulls the fit information from the most recent run (in galfitm.01) and store
    that as a LaTeX-compatible table.
 
    Parameters
@@ -1213,7 +1224,7 @@ def latex_tab(inputdir='.'):
    None.
 
    """
-   param_file = '%s/galfit.01' % inputdir
+   param_file = '%s/galfitm.01' % inputdir
    paramss = input_to_guess(param_file)
    names = ['kind', 'x', 'y', 'mag', 'length', 'sersic', 'axis ratio', 'angle']
    mt = ['',-99,-99,-99,-99,-99,-99,-99]
@@ -1296,12 +1307,13 @@ def cp_psf(file, todir='.'):
 
 def get_flags(file=None, fromdir='.'):
    """
-   Checks for errors produced during the supplied run of GALFIT.
+   Checks for errors produced during the supplied run of GALFITM.
 
    Parameters
    ----------
    file : str, optional
-      File to check for flags. The default is None, which looks for galfit.fits.
+      File to check for flags. The default is None, which looks for
+      galfitm.fits.
       
    fromdir : str, optional
       Directory from which to retrieve file. The default is '.'.
@@ -1315,9 +1327,9 @@ def get_flags(file=None, fromdir='.'):
    """ 
    flag = 0
    if file is None:
-      filename = '%s/galfit.fits' % (fromdir)
+      filename = '%s/galfitm.fits' % (fromdir)
    else:
-      filename = '%s/%s.galfit.fits' % (fromdir, file)
+      filename = '%s/%s.galfitm.fits' % (fromdir, file)
    with fits.open(filename) as hdul:
       flags = hdul[2].header['FLAGS'].split()
       if '1' in flags:
@@ -1341,7 +1353,7 @@ def get_header_param(param, ext=2, file=None, fromdir='.'):
       
    file : str, optional
       Desired FITS file. The default is None, which will pull from
-      'galfit.fits'.
+      'galfitm.fits'.
       
    fromdir : str, optional
       Directory where to find file. The default is '.'.
@@ -1353,7 +1365,7 @@ def get_header_param(param, ext=2, file=None, fromdir='.'):
 
    """
    if file is None:
-      filename = '%s/galfit.fits' % (fromdir)
+      filename = '%s/galfitm.fits' % (fromdir)
    else:
       filename = '%s/%s.fits' % (fromdir, file)
    with fits.open(filename) as hdul:
@@ -1657,7 +1669,7 @@ def errfile(file, outputdir, name="errmap.fits", **kwargs):
 def seek_data(coord, todir, **kwargs):
    '''
    Pulls data as indicated from HST MAST archive, selects appropriate files for
-   use with GALFIT, and downloads them to the indicated directory, along with a
+   use with GALFITM, and downloads them to the indicated directory, along with a
    default PSF model.
 
    Parameters
@@ -1666,8 +1678,8 @@ def seek_data(coord, todir, **kwargs):
       Coordinates of object, passed to Observations.query_criteria.
    
    todir : str
-      Directory to which files should be saved.  This can be the GALFIT working
-      directory, but that is not recommended.
+      Directory to which files should be saved.  This can be the GALFITM
+      working directory, but that is not recommended.
    
    **kwargs
       Passed to Observations.query_criteria.
@@ -1886,8 +1898,8 @@ def automate(working_dir, coord, filters, size,
    This function is my attempt at writing a general-use automatic pipeline of
    the other functions in this wrapper.  It is not exhaustive, and leaves out a
    number of utilities and assumes a default behavior with no options for
-   configuration.  For example, disp_galfit has a large number of customization
-   options that are forced here, as does bkp_galfit.
+   configuration.  For example, disp_galfitm has a large number of customization
+   options that are forced here, as does bkp_galfitm.
 
    Parameters
    ----------
@@ -1919,11 +1931,11 @@ def automate(working_dir, coord, filters, size,
       default is None.
    
    customParam : str, optional
-      File name to find custom GALFIT parameters rather than deriving them
+      File name to find custom GALFITM parameters rather than deriving them
       analytically. The default is None.
    
    customCons : str, optional
-      File name to find custom GALFIT parameters rather than a default. The
+      File name to find custom GALFITM parameters rather than a default. The
       default is None.
    
    useError : bool, optional
@@ -1938,7 +1950,7 @@ def automate(working_dir, coord, filters, size,
       (toggled by ```double```). The default is False.
    
    **kwargs
-      Passed to disp_galfit().
+      Passed to disp_galfitm().
 
    Returns
    -------
@@ -1977,7 +1989,7 @@ def automate(working_dir, coord, filters, size,
    else:
       errmap = None
    
-   # Generate quick guesses of parameters for GALFIT, and make param file.
+   # Generate quick guesses of parameters for GALFITM, and make param file.
    # Also makes a mask file.
    size, zp, sky, comps = get_guesses(path, double=double, masking=True)
    # overwrite param file with custom file if present
@@ -1985,28 +1997,28 @@ def automate(working_dir, coord, filters, size,
       custom_param_file = '%s/%s' % (customDir, customParam)
       comps = input_to_guess(custom_param_file)
    
-   # Generate GALFIT input and constraint files
-   make_galfit_input(size, zp, scale, sky, comps, outputdir=path)
+   # Generate GALFITM input and constraint files
+   make_galfitm_input(size, zp, scale, sky, comps, outputdir=path)
    # overwrite constraint file with custom constraints if present
    if customCons is not None:
       custom_cons_file = '%s/%s' % (customDir, customCons)
       os.system('cp %s %s/constraints' % (custom_cons_file, working_dir))
-   run_galfit(outputdir=path)
+   run_galfitm(outputdir=path)
    
    # If using a central PSF, check to center the radial profile on it.
    loc = (-1, -1)
    if double and center_psf:
-      comps = input_to_guess(path + '/galfit.01')
+      comps = input_to_guess(path + '/galfitm.01')
       psf = next(comp for comp in comps if len(comp) == 3)
       loc = (psf[0], psf[1])
    
    # Produce output image.
-   disp_galfit(inputdir=path, outputdir=path, save=True, name=imname,
+   disp_galfitm(inputdir=path, outputdir=path, save=True, name=imname,
                scale=scale[0], errmap=errmap, loc=loc, **kwargs)
    
    # Back up relevant files.
    if backupdir is not None:
-      bkp_galfit(backupdir, fromdir=path, name=bkpname, gal=True, slices=True, 
+      bkp_galfitm(backupdir, fromdir=path, name=bkpname, gal=True, slices=True, 
                  inpt=False, log=False, image=imname)
    return
 
