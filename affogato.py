@@ -175,7 +175,6 @@ def run_galfitm(galpath='me', outputdir='.'):
       galpath = '/Users/ljnolan/opt/anaconda3/bin/galfitm'
    os.system("cd %s ; rm -f galfitm.*" % outputdir)
    os.system("cd %s ; " % outputdir + galpath + " input")
-   os.system("cd %s ; " % outputdir + galpath + " galfitm.01 -o3")
    return
 
 
@@ -201,7 +200,7 @@ def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
       the run/object. The default is '', which results in no prepending.
    
    gal : boolean, optional
-      Toggle to back up 'galfitm.01' and 'galfitm.fits'. The default is True.
+      Toggle to back up 'galfitm.galfit.01' and 'galfitm.fits'. The default is True.
    
    slices : boolean, optional
       Toggle to back up 'subcomps.fits'. The default is True.
@@ -225,7 +224,7 @@ def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
    if name != '':
       name += '.'
    if gal:
-      os.system("cd %s ; cp galfitm.01 %s/%sgalfitm.01" % (fromdir, todir, 
+      os.system("cd %s ; cp galfitm.galfit.01 %s/%sgalfitm.galfit.01" % (fromdir, todir, 
                                                           name))
       os.system("cd %s ; cp galfitm.fits %s/%sgalfitm.fits" % (fromdir, todir, 
                                                               name))
@@ -408,6 +407,7 @@ J) %f       # Magnitude photometric zeropoint
 K) %0.2f %0.2f       # Plate scale (dx dy)   [arcsec per pixel]
 O) regular         # Display type (regular, curses, both)
 P) 0               # Choose: 0=optimize, 1=model, 2=imgblock, 3=subcomps
+W) input,model,residual,component      # Output options
     """
 
    string_sky = """
@@ -822,15 +822,15 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
          mask = None
    else:
       mask = None
-   compnum = len(fits.open('%s/subcomps.fits' % inputdir))
-   compnum = range(compnum)[2:]
+   compnum = len(fits.open('%s/galfitm.fits' % inputdir))
+   compnum = range(compnum)[4:]
+   print(compnum)
    cols = 3
    if radprof:
       cols += 1
    if psfsub:
       cols += 1
    arrange = 1+math.ceil(len(compnum)/cols)
-   print(cols, arrange)
    if thorough:
       fig = plt.figure(figsize=(6*cols, 6 * arrange))
    else:
@@ -845,20 +845,20 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
    else:
       gs = GridSpec(2, cols, wspace=sp, hspace=sp, height_ratios=hr[0:2])
    # Main components
-   n = 1
-   while n <= cols:
-      # Data processing and cleaning; if n == 3 & psfsub, data is passed down
-      # to n == 4
+   n = 0
+   file = '%s/galfitm.fits' % inputdir
+   while n <= cols-1:
+      # Data processing and cleaning; if n == 2 & psfsub, data is passed down
+      # to n == 3
       if n < 4:
-         data = dataPull('%s/galfitm.fits' % inputdir, n)
+         data = dataPull(file, n)
          llim, ulim = np.percentile(data, [1, 99])
-         if n == 1:
-            bkgrd = getBkgrd('%s/galfitm.fits' % inputdir, n)
+         if n == 0:
+            bkgrd = getBkgrd(file, n)
             norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim)
             if psfsub:
-               holdover = data - dataPull('%s/subcomps.fits' % inputdir,
-                                          compnum[0])
-         if n == 3:
+               holdover = data - dataPull(file, compnum[0])
+         if n == 2:
             if errmap is None:
                noise = np.std(data[(data>llim) & \
                                 (data<ulim)])
@@ -866,13 +866,13 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
                noise = errmap
          if mask is None:
             pass
-         elif n!=1:
-            if n == 3:
+         elif n!=0:
+            if n == 2:
                data = np.where(mask==0, data, 0)
             data = np.ma.masked_array(data, mask=mask)
          datat = percentile_cut(data, 1, 99)
       
-      ax = fig.add_subplot(gs[0:2, n-1])
+      ax = fig.add_subplot(gs[0:2, n])
       ax.set_axis_off()
       ax.grid()
       if scale > 0:
@@ -884,15 +884,15 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
       origin = 'lower'
       cmap = 'viridis'
       interpolation = 'nearest'
-      if n == 1:
+      if n == 0:
          ax.set_title('Data')
          ax.imshow(datat, norm=norm, origin=origin, cmap=cmap, 
                    interpolation=interpolation)
-      elif n == 2:
+      elif n == 1:
          ax.set_title('Model')
          ax.imshow(datat, norm=norm, origin=origin, cmap=cmap, 
                    interpolation=interpolation)
-      elif psfsub and n == 3:
+      elif psfsub and n == 2:
          holdover = np.ma.masked_array(holdover, mask=mask)
          holdovert = percentile_cut(holdover, 1, 99)
          ax.set_title('Data - PSF')
@@ -918,7 +918,7 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
    # Subcomps
    if thorough:
       for n in compnum:
-         data = dataPull('%s/subcomps.fits' % inputdir, n)
+         data = dataPull('%s/galfitm.fits' % inputdir, n)
          if masking:
             data = np.ma.masked_array(data, mask=mask)
          #transform = PercentileInterval(99.)
@@ -998,17 +998,17 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
       comps = ['data', 'total model', 'PSF', 'sersic', 'contaminant']
    colors = ['k', '#377eb8', '#ff7f00', '#4daf4a', '#f781bf', '#a65628',
              '#984ea3','#999999', '#e41a1c', '#dede00']
-   compnum = len(fits.open('%s/subcomps.fits' % inputdir))
-   compnum = range(compnum)[2:]
+   compnum = len(fits.open('%s/galfitm.fits' % inputdir))
+   compnum = range(compnum)[4:]
    muss, rad = rad_prof_from_file(inputdir=inputdir, flx=flx, bksb=True, 
                                      getr=True, **kwargs)
    x = np.linspace(0, 1, len(muss)) * rad
    muss = [muss]
-   muss.append(rad_prof_from_file(file='galfit', ext=2, inputdir=inputdir,
+   muss.append(rad_prof_from_file(file='galfitm', ext=2, inputdir=inputdir,
                                   flx=flx, **kwargs))
    # Subcomps
    for n in compnum:
-      muss.append(rad_prof_from_file(file='subcomps', ext=n,
+      muss.append(rad_prof_from_file(file='galfitm', ext=n,
                                               inputdir=inputdir, flx=flx, 
                                               **kwargs))
    muss = np.asarray(muss)
@@ -1211,8 +1211,8 @@ def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
 
 def latex_tab(inputdir='.'):
    """
-   Pulls the fit information from the most recent run (in galfitm.01) and store
-   that as a LaTeX-compatible table.
+   Pulls the fit information from the most recent run (in galfitm.galfit.01)
+   and store that as a LaTeX-compatible table.
 
    Parameters
    ----------
@@ -1224,7 +1224,7 @@ def latex_tab(inputdir='.'):
    None.
 
    """
-   param_file = '%s/galfitm.01' % inputdir
+   param_file = '%s/galfitm.galfit.01' % inputdir
    paramss = input_to_guess(param_file)
    names = ['kind', 'x', 'y', 'mag', 'length', 'sersic', 'axis ratio', 'angle']
    mt = ['',-99,-99,-99,-99,-99,-99,-99]
@@ -1796,7 +1796,7 @@ def download_psf(filter_name, psf_dir):
 
 def get_psf(fits_filepath, psf_dir, coord):
    '''
-   Locates and excises the empirical PSF best suited for the given location in
+   Ideally, this would locate and excise the empirical PSF best suited for the given location in
    the given file as follows:
       
     - Checks FITS header for WFC3 and filter.
@@ -1804,6 +1804,12 @@ def get_psf(fits_filepath, psf_dir, coord):
     - Ensures empirical PSF (library) is present/downloaded.
     - Finds grid PSF closest to given skycoord and writes it as a new FITS
       file.
+   
+   In reality, we simply grab the central PSF of the empirical PSF for the
+   appropriate band.  This is roughly sufficient as the empirical PSF is never
+   an excellent fit to given data regardless, so the variation across the chip
+    - already not easy to account for in drizzled images - is negligible
+    compared to other errors.
 
    Parameters
    ----------
@@ -1825,10 +1831,6 @@ def get_psf(fits_filepath, psf_dir, coord):
    -------
    output_path : str
       Path to output PSF.
-
-   Notes
-   -----
-   TODO: Make sure this works, minimally edited from Perplexity
 
    '''
    # Open FITS file and read header info
@@ -2004,14 +2006,12 @@ def automate(working_dir, coord, filters, size,
       custom_cons_file = '%s/%s' % (customDir, customCons)
       os.system('cp %s %s/constraints' % (custom_cons_file, working_dir))
    run_galfitm(outputdir=path)
-   
    # If using a central PSF, check to center the radial profile on it.
    loc = (-1, -1)
    if double and center_psf:
-      comps = input_to_guess(path + '/galfitm.01')
+      comps = input_to_guess(path + '/galfitm.galfit.01')
       psf = next(comp for comp in comps if len(comp) == 3)
       loc = (psf[0], psf[1])
-   
    # Produce output image.
    disp_galfitm(inputdir=path, outputdir=path, save=True, name=imname,
                scale=scale[0], errmap=errmap, loc=loc, **kwargs)
@@ -2026,7 +2026,7 @@ def automate(working_dir, coord, filters, size,
 # =============================================================================
 # Scrap code begins here
 # =============================================================================
-filters = 'F160W'
+filters = 'F160W' #F160W
 working_dir = 'testing'
 size = (200, 200)
 coord = SkyCoord(212.5857, 36.723, frame='icrs', unit='deg')
