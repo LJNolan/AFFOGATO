@@ -822,9 +822,9 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
          mask = None
    else:
       mask = None
-   compnum = len(fits.open('%s/galfitm.fits' % inputdir))
-   compnum = range(compnum)[4:]
-   print(compnum)
+   with fits.open('%s/galfitm.fits' % inputdir) as hdul:
+      compnum = len(hdul)
+      compnum = range(compnum)[4:]
    cols = 3
    if radprof:
       cols += 1
@@ -850,7 +850,7 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
    while n <= cols-1:
       # Data processing and cleaning; if n == 2 & psfsub, data is passed down
       # to n == 3
-      if n < 4:
+      if n < 3:
          data = dataPull(file, n)
          llim, ulim = np.percentile(data, [1, 99])
          if n == 0:
@@ -998,19 +998,23 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
       comps = ['data', 'total model', 'PSF', 'sersic', 'contaminant']
    colors = ['k', '#377eb8', '#ff7f00', '#4daf4a', '#f781bf', '#a65628',
              '#984ea3','#999999', '#e41a1c', '#dede00']
-   compnum = len(fits.open('%s/galfitm.fits' % inputdir))
-   compnum = range(compnum)[4:]
+   with fits.open('%s/galfitm.fits' % inputdir) as hdul:
+      compnum = len(hdul)
+      compnum = range(compnum)[4:]
    muss, rad = rad_prof_from_file(inputdir=inputdir, flx=flx, bksb=True, 
                                      getr=True, **kwargs)
    x = np.linspace(0, 1, len(muss)) * rad
    muss = [muss]
-   muss.append(rad_prof_from_file(file='galfitm', ext=2, inputdir=inputdir,
+   muss.append(rad_prof_from_file(file='galfitm', ext=1, inputdir=inputdir,
                                   flx=flx, **kwargs))
    # Subcomps
    for n in compnum:
-      muss.append(rad_prof_from_file(file='galfitm', ext=n,
-                                              inputdir=inputdir, flx=flx, 
-                                              **kwargs))
+      try:
+         muss.append(rad_prof_from_file(file='galfitm', ext=n,
+                                        inputdir=inputdir, flx=flx, 
+                                        **kwargs))
+      except TypeError: # For some reason, galfitm.fits tells astropy it has 10
+         break          # extensions when it only has 6. This avoids that error
    muss = np.asarray(muss)
    
    # Add to axis
