@@ -290,8 +290,9 @@ def getBkgrd(image, ext=0, sigma=3.0, npix=50):
 
    Parameters
    ----------
-   image : string
-      FITS file path from which background should be estimated.
+   image : string or array-like
+      FITS file path from which background should be estimated, or the data
+      from that file.
    ext : int, optional
       FITS extension from which background should be estimated. The default is
       0.
@@ -308,7 +309,10 @@ def getBkgrd(image, ext=0, sigma=3.0, npix=50):
       The estimated background level of the image.
 
    """
-   data = dataPull(image, ext)
+   if type(image) == str:
+      data = dataPull(image, ext)
+   else:
+      data = image
 
    sigma_clip = SigmaClip(sigma=sigma, maxiters=10)
    threshold = detect_threshold(data, nsigma=3.0, sigma_clip=sigma_clip)
@@ -815,6 +819,23 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
    None.
 
    """
+   # Get data from file
+   file = '%s/galfitm.fits' % inputdir
+   with fits.open(file) as hdul:
+      ext_list = [hdu.name for hdu in hdul]
+      main_exts = ['INPUT', 'MODEL', 'RESIDUAL']
+      input_data = hdul['INPUT'].data
+      model_data = hdul['MODEL'].data
+      res_data = hdul['RESIDUAL'].data
+      if thorough or radprof:
+         comp_exts = [s for s in ext_list if 'COMPONENT' in s and not 'sky' \
+                      in s]
+         compnum = len(comp_exts)
+         comp_datas = []
+         for comp_ext in comp_exts:
+            comp_datas.append(hdul[comp_ext].data)
+         comp_dict = dict(zip(comp_exts, comp_datas))
+   
    if masking:
       mask = np.ma.make_mask(dataPull('%s/mask.fits' % inputdir))
       if (str(type(mask)) == "<class 'numpy.bool_'>" or
@@ -822,15 +843,12 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
          mask = None
    else:
       mask = None
-   with fits.open('%s/galfitm.fits' % inputdir) as hdul:
-      compnum = len(hdul)
-      compnum = range(compnum)[4:]
    cols = 3
    if radprof:
       cols += 1
    if psfsub:
       cols += 1
-   arrange = 1+math.ceil(len(compnum)/cols)
+   arrange = 1+math.ceil(compnum/cols)
    if thorough:
       fig = plt.figure(figsize=(6*cols, 6 * arrange))
    else:
@@ -844,71 +862,64 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
       gs = GridSpec(arrange+1, cols, wspace=sp, hspace=sp, height_ratios=hr)
    else:
       gs = GridSpec(2, cols, wspace=sp, hspace=sp, height_ratios=hr[0:2])
-   # Main components
-   n = 0
-   file = '%s/galfitm.fits' % inputdir
-   while n <= cols-1:
-      # Data processing and cleaning; if n == 2 & psfsub, data is passed down
-      # to n == 3
-      if n < 3:
-         data = dataPull(file, n)
-         llim, ulim = np.percentile(data, [1, 99])
-         if n == 0:
-            bkgrd = getBkgrd(file, n)
-            norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim)
-            if psfsub:
-               holdover = data - dataPull(file, compnum[0])
-         if n == 2:
-            if errmap is None:
-               noise = np.std(data[(data>llim) & \
-                                (data<ulim)])
-            else:
-               noise = errmap
-         if mask is None:
-            pass
-         elif n!=0:
-            if n == 2:
-               data = np.where(mask==0, data, 0)
-            data = np.ma.masked_array(data, mask=mask)
-         datat = percentile_cut(data, 1, 99)
-      
+   
+   # Process and clean data
+   bkgrd = getBkgrd(input_data)
+   llim1, ulim1 = np.percentile(input_data, [1, 99])
+   norm = ImageNormalize(stretch=LogStretch(), vmin=bkgrd, vmax=ulim1)
+   # generate psf-subtracted image, if needed
+   if psfsub:
+      psf1_ext = next(x for x in comp_exts if 'psf' in x)
+      psfsub_data = input_data - comp_dict[psf1_ext]
+      psfsub_data_cut = percentile_cut(psfsub_data, 1, 99, mask=mask)
+      psfsub_data_cut = np.ma.masked_array(psfsub_data_cut, mask=mask)
+   # generate errmap, if needed
+   llim2, ulim2 = np.percentile(res_data, [1, 99])
+   if errmap is None:
+      noise = np.std(res_data[(res_data>llim2) & (res_data<ulim2)])
+   else:
+      noise = errmap
+   res_data = np.where(mask==0, res_data, 0)
+   # percentile cuts
+   input_data_cut = percentile_cut(input_data, 1, 99, mask=mask)
+   model_data_cut = percentile_cut(model_data, 1, 99, mask=mask)
+   # apply mask
+   model_data_cut = np.ma.masked_array(model_data_cut, mask=mask)
+   res_data = np.ma.masked_array(res_data, mask=mask)
+   
+   if psfsub:
+      titles = ['Data', 'Model', 'Data - PSF', 'Residual']
+      datas = [input_data_cut, model_data_cut, psfsub_data_cut, res_data]
+   else:
+      titles = ['Data', 'Model', 'Residual']
+      datas = [input_data_cut, model_data_cut, res_data]
+   
+   # Populate axes
+   origin = 'lower'
+   cmap = 'viridis'
+   interpolation = 'nearest'
+   for n in range(len(titles)):
       ax = fig.add_subplot(gs[0:2, n])
       ax.set_axis_off()
       ax.grid()
       if scale > 0:
-         corn = len(data) / 20
+         corn = len(datas[n]) / 20
          pts = [[corn, corn+(5/scale)], [corn, corn]]
          ax.plot(pts[0], pts[1], 'w-', linewidth=4)
          ax.text(corn+(2.4/scale), corn * (6.5/5), '5"', color='w', 
                  fontweight='bold', fontsize='large')
-      origin = 'lower'
-      cmap = 'viridis'
-      interpolation = 'nearest'
-      if n == 0:
-         ax.set_title('Data')
-         ax.imshow(datat, norm=norm, origin=origin, cmap=cmap, 
-                   interpolation=interpolation)
-      elif n == 1:
-         ax.set_title('Model')
-         ax.imshow(datat, norm=norm, origin=origin, cmap=cmap, 
-                   interpolation=interpolation)
-      elif psfsub and n == 2:
-         holdover = np.ma.masked_array(holdover, mask=mask)
-         holdovert = percentile_cut(holdover, 1, 99)
-         ax.set_title('Data - PSF')
-         ax.imshow(holdovert, norm=norm, origin=origin, cmap=cmap, 
+      ax.set_title(titles[n])
+      if n < 3:
+         ax.imshow(datas[n], norm=norm, origin=origin, cmap=cmap, 
                    interpolation=interpolation)
       else:
-         ax.set_title('Residual')
-         im = ax.imshow(data/noise, origin=origin, vmin=-3, vmax=5,
+         im = ax.imshow(datas[n]/noise, origin=origin, vmin=-3, vmax=5,
                         cmap=cmap, interpolation=interpolation)
          divider = make_axes_locatable(ax)
          cax = divider.append_axes('bottom', size='4%', pad=0.02)
          cbar = fig.colorbar(im, cax=cax,orientation='horizontal')
          cbar.ax.tick_params(labelsize=14, width=1.5)
          cbar.set_label(label = r"$\sigma$", fontsize=14, labelpad=-4)
-         break
-      n += 1
    
    # Radial Profile
    if radprof:
@@ -917,18 +928,16 @@ def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
               **kwargs)
    # Subcomps
    if thorough:
-      for n in compnum:
-         data = dataPull('%s/galfitm.fits' % inputdir, n)
+      for n, ext in enumerate(comp_exts):
+         data = comp_dict[ext]
          if masking:
             data = np.ma.masked_array(data, mask=mask)
-         #transform = PercentileInterval(99.)
-         datat = percentile_cut(data, 1, 99)
-         norm = ImageNormalize(stretch=LogStretch())
+         data_cut = percentile_cut(data, 1, 99)
          ax = fig.add_subplot(((n-1)//cols)+2, gs[((n-1)%cols)-1])
          ax.set_axis_off()
          ax.grid()
-         ax.imshow(datat, norm=norm, origin='lower', cmap='Greys_r', 
-                   interpolation='nearest')
+         ax.imshow(data_cut, norm=norm, origin=origin, cmap=cmap, 
+                   interpolation=interpolation)
    
    if save:
       plt.savefig('%s/%s' % (outputdir, name), bbox_inches='tight')
@@ -998,24 +1007,16 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
       comps = ['data', 'total model', 'PSF', 'sersic', 'contaminant']
    colors = ['k', '#377eb8', '#ff7f00', '#4daf4a', '#f781bf', '#a65628',
              '#984ea3','#999999', '#e41a1c', '#dede00']
-   with fits.open('%s/galfitm.fits' % inputdir) as hdul:
-      compnum = len(hdul)
-      compnum = range(compnum)[4:]
-   muss, rad = rad_prof_from_file(inputdir=inputdir, flx=flx, bksb=True, 
-                                     getr=True, **kwargs)
-   x = np.linspace(0, 1, len(muss)) * rad
-   muss = [muss]
-   muss.append(rad_prof_from_file(file='galfitm', ext=1, inputdir=inputdir,
-                                  flx=flx, **kwargs))
-   # Subcomps
-   for n in compnum:
-      try:
-         muss.append(rad_prof_from_file(file='galfitm', ext=n,
-                                        inputdir=inputdir, flx=flx, 
-                                        **kwargs))
-      except TypeError: # For some reason, galfitm.fits tells astropy it has 10
-         break          # extensions when it only has 6. This avoids that error
-   muss = np.asarray(muss)
+   
+   file = '%s/galfitm.fits' % inputdir
+   with fits.open(file) as hdul:
+      ext_list = [hdu.name for hdu in hdul]
+      main_exts = ['INPUT', 'MODEL']
+      comp_exts = [s for s in ext_list if 'COMPONENT' in s and not 'sky' in s]
+      exts = main_exts + comp_exts
+   
+   muss, x = rad_prof_from_file(exts=exts, inputdir=inputdir, flx=flx,
+                                **kwargs)
    
    # Add to axis
    if res:
@@ -1078,22 +1079,26 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
    return
 
 
-def rad_prof_from_file(file='image', ext=0, inputdir='.', loc=(-1,-1), 
-                       radfrac=1.0, bksb=True, getr=False, **kwargs):
+def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
+                       loc=(-1,-1), radfrac=1.0, **kwargs):
    """
-   Utility wrapper for radial_profile() which pulls data and header
-   information, and sets other inputs. Header information will always be pulled
-   from 'image.fits', but the data file can be changed (e.g. for use with 
-   GALFITM subcomps).
+   Wrapper for radial_profile() which pulls data and header information and
+   loops through the desired extensions of ```file```.
 
    Parameters
    ----------
+   image : str, optional
+      Filename to retrieve header information from, such as WCS. The default is
+      'image', and name is appended with '.fits'.
+   
    file : str, optional
-      Alternate filename to retrieve data from. The default is 'image', and
+      Filename to retrieve data from. The default is 'galfitm', and
       name is appended with '.fits'.
       
-   ext : int, optional
-      Extension from which to retrieve data. The default is 0.
+   exts : list of int or str, optional
+      Extension from which to retrieve data. The default is [], which will
+      prompt automatic usage of 'INPUT', 'MODEL', and all components except
+      sky.
       
    inputdir : str, optional
       Directory to find files. The default is '.'.
@@ -1106,54 +1111,65 @@ def rad_prof_from_file(file='image', ext=0, inputdir='.', loc=(-1,-1),
       Sets the radius r of the radial profile, equal to 1/2 image size times
       ```radfrac```. The default is 1.0.
       
-   bksb : bool, optional
-      Toggle whether to perform background subtraction. The default is True.
-      
-   getr : bool, optional
-      Toggle to return radii in arcsec rather than pixels. The default is
-      False.
-      
    **kwargs
       Passed to radial_profile().
 
    Returns
    -------
-   None.
+   muss : array
+      Radial profile as a 2D array where each row represents a profiled
+      component, and each column corresponding to the radii below.
    
-   Notes
-   -----
-   Background subtraction is unnecessary when using GALFITM subcomps.
+   radii : list of floats
+      Radii, in arcsec, corresponding to the center of the bins of the radial
+      profile points above.
 
    """
-   datafile = '%s/%s.fits' % (inputdir, file)
-   image = '%s/image.fits' % inputdir
-   data = dataPull(datafile, ext=ext)
-   if bksb:
-      bkgrd = getBkgrd(datafile, ext=ext)
-      data = data - bkgrd
+   file = '%s/%s.fits' % (inputdir, file)
+   image = '%s/%s.fits' % (inputdir, image)
+   
+   # Get data
+   with fits.open(file) as hdul:
+      if len(exts) == 0:
+         ext_list = [hdu.name for hdu in hdul]
+         main_exts = ['INPUT', 'MODEL']
+         comp_exts = [s for s in ext_list if 'COMPONENT' in s and not 'sky' \
+                      in s]
+         exts = main_exts + comp_exts
+      
+      datas = []
+      for ext in exts:
+         data = hdul[ext].data
+         if ext == 'INPUT':
+            data = data - getBkgrd(data)
+         datas.append(data)
+         #quick_plot(data) # TODO: temp, remove)
+   
+   # Get header information from image
    with fits.open(image) as hdu:
       hdr = hdu[0].header
       shp = tuple(hdu[0].data.shape)
    radius = shp[0] * radfrac / 2
-   wcs = WCS(hdr)
    if loc == (-1, -1):
       loc = (shp[0]/2, shp[1]/2)
-   lat, long = wcs.all_pix2world(loc[0], loc[1], 0)
-   ra, dec = lat*u.deg, long*u.deg
-   coord = SkyCoord(ra=ra, dec=dec, frame='icrs')
+   xycen = loc
    fscale = hdr['fscale']
    radii = np.linspace(1, radius, num=50)
    zp = -2.5*np.log10(hdr["PHOTFLAM"]) + hdr["PHOTZPT"]
    exptime = hdr['EXPTIME']
-   mus = radial_profile(data, radii, wcs, coord, fscale, zp, exptime=exptime,
-                        **kwargs)
-   if getr:
-      return mus, radius * fscale
-   else:
-      return mus
+   
+   # Get radial profiles
+   muss = []
+   for data in datas:
+      mus = radial_profile(data, radii, xycen, fscale, zp,
+                           exptime=exptime, **kwargs)
+      muss.append(mus)
+   muss = np.asarray(muss)
+   
+   return muss, ((radii[1:] + radii[:-1]) / 2) * fscale
 
 
-def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
+def radial_profile(data, radii, xycen, fscale, zp, exptime=1., flx=False,
                    mask=None):
    """
    Produces a radial profile describing the brightness of an image from the
@@ -1167,11 +1183,8 @@ def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
    radii : ndarray
       Desired radii at which to take profile.
       
-   wcs : astropy wcs
-      WCS for image.
-      
-   coord : SkyCoord coord
-      Target coordinate upon which to center profile.
+   xycen : tuple of floats
+      Pixel coordinate at which to center profile.
       
    fscale : float
       Plate scale in arcsec/pixel.
@@ -1199,12 +1212,7 @@ def radial_profile(data, radii, wcs, coord, fscale, zp, exptime=1., flx=False,
       The desired radial profile at the given radii.
 
    """
-   
-   xycen = skycoord_to_pixel(coord, wcs=wcs)
-   if mask is None:
-      rp = RadialProfile(data, xycen, radii)
-   else:
-      rp = RadialProfile(data, xycen, radii, mask=mask)
+   rp = RadialProfile(data, xycen, radii, mask=mask)
    
    if flx:
       mus = rp.profile
