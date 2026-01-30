@@ -1138,12 +1138,13 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
          exts = main_exts + comp_exts
       
       datas = []
+      input_for_sky = hdul['INPUT'].data
+      sky = getBkgrd(input_for_sky)
       for ext in exts:
-         data = hdul[ext].data
-         if ext == 'INPUT':
-            data = data - getBkgrd(data)
-         datas.append(data)
-         #quick_plot(data) # TODO: temp, remove)
+          data = hdul[ext].data.astype(float)
+          if ext in ['INPUT', 'MODEL']:
+              data = data - sky
+          datas.append(data)
    
    # Get header information from image
    with fits.open(image) as hdu:
@@ -1217,7 +1218,11 @@ def radial_profile(data, radii, xycen, fscale, zp, exptime=1., flx=False,
    if flx:
       mus = rp.profile
    else:
-      mus = -2.5 * np.log10(rp.profile) + zp # Divide by EXPTIME?
+      prof = np.array(rp.profile, dtype=float)
+      prof = prof / exptime / (fscale**2)
+      prof[~np.isfinite(prof)] = np.nan
+      prof[prof <= 0] = np.nan
+      mus = -2.5 * np.log10(prof) + zp
    return mus
 
 
@@ -2030,8 +2035,8 @@ def automate(working_dir, coord, filters, size,
    
    # Back up relevant files.
    if backupdir is not None:
-      bkp_galfitm(backupdir, fromdir=path, name=bkpname, gal=True, slices=True, 
-                 inpt=False, log=False, image=imname)
+      bkp_galfitm(backupdir, fromdir=path, name=bkpname, gal=True, inpt=False,
+                  log=False, image=imname)
    return
 
 
