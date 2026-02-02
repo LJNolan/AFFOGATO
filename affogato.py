@@ -178,13 +178,12 @@ def run_galfitm(galpath='me', outputdir='.'):
    return
 
 
-def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
+def bkp_galfitm(todir, fromdir='.', name='', gal=True, inpt=False,
                log=False, image=None):
    """
    Backs up the outputs of GALFITM, with multiple toggles for different outputs
-   to back up. By default, backs up the normal GALFITM outputs plus
-   "subcomps.fits".
-
+   to back up. By default, backs up the normal GALFITM outputs.
+   
    Parameters
    ----------
    todir : string
@@ -201,9 +200,6 @@ def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
    
    gal : boolean, optional
       Toggle to back up 'galfitm.galfit.01' and 'galfitm.fits'. The default is True.
-   
-   slices : boolean, optional
-      Toggle to back up 'subcomps.fits'. The default is True.
    
    inpt : boolean, optional
       Toggle to back up 'input'. The default is False.
@@ -228,9 +224,6 @@ def bkp_galfitm(todir, fromdir='.', name='', gal=True, slices=True, inpt=False,
                                                           name))
       os.system("cd %s ; cp galfitm.fits %s/%sgalfitm.fits" % (fromdir, todir, 
                                                               name))
-   if slices:
-      os.system("cd %s ; cp subcomps.fits %s/%ssubcomps.fits" % (fromdir, 
-                                                                  todir, name))
    if inpt:
       os.system("cd %s ; cp input %s/%sinput" % (fromdir, todir, name))
    if log:
@@ -520,9 +513,9 @@ def input_to_guess(filename):
             continue
          if readingPSF:
             words = line.split()
-            if line[1] == '1':
+            info = ['1', '2']
+            if line[1] in info:
                comp.append(float(words[1]))
-               comp.append(float(words[2]))
                continue
             elif line[1] == '3':
                comp.append(float(words[1]))
@@ -532,26 +525,14 @@ def input_to_guess(filename):
                continue
          if readingGal:
             words = line.split()
+            info = ['1', '2', '3', '4', '5', '9']
             if line[1:3] == '10' or line[0:2] == '10':
                comp.append(float(words[1]))
                comps.append(comp)
                comp = []
                readingGal = False
                continue
-            elif line[1] == '1':
-               comp.append(float(words[1]))
-               comp.append(float(words[2]))
-               continue
-            elif line[1] == '3':
-               comp.append(float(words[1]))
-               continue
-            elif line[1] == '4':
-               comp.append(float(words[1]))
-               continue
-            elif line[1] == '5':
-               comp.append(float(words[1]))
-               continue
-            elif line[1] == '9':
+            elif line[1] in info:
                comp.append(float(words[1]))
                continue
          if line[1] == '0' and line[0] != '1':
@@ -761,6 +742,17 @@ def write_mask(mask, inputdir="."):
    # Write the cutout to a new FITS file
    hdul_new.writeto('%s/mask.fits' % inputdir, overwrite=True)
    return
+
+
+def estimate_outer_sky(img, frac=0.25, mask=None):
+   ny, nx = img.shape
+   y0, y1 = int(ny*(1-frac)), ny
+   x0, x1 = int(nx*(1-frac)), nx
+   patch = img[y0:y1, x0:x1]
+   if mask is not None:
+      mpatch = mask[y0:y1, x0:x1]
+      patch = patch[~mpatch]
+   return np.nanmedian(patch)
 
 
 def disp_galfitm(inputdir='.', outputdir='.', save=True, name='galim.png',
@@ -1008,15 +1000,7 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
    colors = ['k', '#377eb8', '#ff7f00', '#4daf4a', '#f781bf', '#a65628',
              '#984ea3','#999999', '#e41a1c', '#dede00']
    
-   file = '%s/galfitm.fits' % inputdir
-   with fits.open(file) as hdul:
-      ext_list = [hdu.name for hdu in hdul]
-      main_exts = ['INPUT', 'MODEL']
-      comp_exts = [s for s in ext_list if 'COMPONENT' in s and not 'sky' in s]
-      exts = main_exts + comp_exts
-   
-   muss, x = rad_prof_from_file(exts=exts, inputdir=inputdir, flx=flx,
-                                **kwargs)
+   muss, x = rad_prof_from_file(inputdir=inputdir, flx=flx, **kwargs)
    
    # Add to axis
    if res:
@@ -1079,8 +1063,9 @@ def rp_plot(fig, gs, locators, comps=['unknown'], inputdir='.', outputdir='.',
    return
 
 
-def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
-                       loc=(-1,-1), radfrac=1.0, **kwargs):
+def rad_prof_from_file(image='image', file='galfitm', exts=[], sky=None,
+                       inputdir='.', loc=(-1,-1), radfrac=1.0, mask=None,
+                       **kwargs):
    """
    Wrapper for radial_profile() which pulls data and header information and
    loops through the desired extensions of ```file```.
@@ -1099,6 +1084,10 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
       Extension from which to retrieve data. The default is [], which will
       prompt automatic usage of 'INPUT', 'MODEL', and all components except
       sky.
+   
+   sky : array-like, optional
+      Array of sky data to use.  Required if supplying exts, otherwise
+      retrieved automatically.
       
    inputdir : str, optional
       Directory to find files. The default is '.'.
@@ -1110,6 +1099,9 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
    radfrac : float, optional
       Sets the radius r of the radial profile, equal to 1/2 image size times
       ```radfrac```. The default is 1.0.
+   
+   mask : ndarray, optional
+      Optional image mask. The default is None.
       
    **kwargs
       Passed to radial_profile().
@@ -1130,20 +1122,22 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
    
    # Get data
    with fits.open(file) as hdul:
+      main_exts = ['INPUT', 'MODEL']
       if len(exts) == 0:
          ext_list = [hdu.name for hdu in hdul]
-         main_exts = ['INPUT', 'MODEL']
          comp_exts = [s for s in ext_list if 'COMPONENT' in s and not 'sky' \
                       in s]
+         sky_ext = [s for s in ext_list if 'COMPONENT' in s and 'sky' in s][0]
          exts = main_exts + comp_exts
+      elif sky is None:
+         raise ValueError('Must provide sky array if providing extension list')
       
       datas = []
-      input_for_sky = hdul['INPUT'].data
-      sky = getBkgrd(input_for_sky)
+      sky_img = hdul[sky_ext].data.astype(float)
       for ext in exts:
           data = hdul[ext].data.astype(float)
-          if ext in ['INPUT', 'MODEL']:
-              data = data - sky
+          if ext in main_exts:
+              data = data - sky_img
           datas.append(data)
    
    # Get header information from image
@@ -1152,7 +1146,7 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
       shp = tuple(hdu[0].data.shape)
    radius = shp[0] * radfrac / 2
    if loc == (-1, -1):
-      loc = (shp[0]/2, shp[1]/2)
+      loc = (shp[1]/2, shp[0]/2)
    xycen = loc
    fscale = hdr['fscale']
    radii = np.linspace(1, radius, num=50)
@@ -1163,8 +1157,17 @@ def rad_prof_from_file(image='image', file='galfitm', exts=[], inputdir='.',
    muss = []
    for data in datas:
       mus = radial_profile(data, radii, xycen, fscale, zp,
-                           exptime=exptime, **kwargs)
+                           exptime=exptime, mask=mask, **kwargs)
       muss.append(mus)
+   
+   # Testing checks
+   print(f'INPUT checks:\nINPUT[0:10] = {muss[0][0:10]}\nnanmin(INPUT)',
+         f'= {np.nanmin(muss[0])}\nnanmedian(INPUT) =',
+         f'{np.nanmedian(muss[0])}\nnanmax(INPUT) = {np.nanmax(muss[0])}')
+   print(f'MODEL checks:\nMODEL[0:10] = {muss[1][0:10]}\nnanmin(MODEL)',
+         f'= {np.nanmin(muss[1])}\nnanmedian(MODEL) =',
+         f'{np.nanmedian(muss[1])}\nnanmax(MODEL) = {np.nanmax(muss[1])}')
+   
    muss = np.asarray(muss)
    
    return muss, ((radii[1:] + radii[:-1]) / 2) * fscale
@@ -1219,10 +1222,11 @@ def radial_profile(data, radii, xycen, fscale, zp, exptime=1., flx=False,
       mus = rp.profile
    else:
       prof = np.array(rp.profile, dtype=float)
-      prof = prof / exptime / (fscale**2)
       prof[~np.isfinite(prof)] = np.nan
-      prof[prof <= 0] = np.nan
-      mus = -2.5 * np.log10(prof) + zp
+      prof = prof / (fscale**2)
+      mus = np.full_like(prof, np.nan)
+      pos = prof > 0
+      mus[pos] = -2.5*np.log10(prof[pos]) + zp
    return mus
 
 
@@ -2030,7 +2034,7 @@ def automate(working_dir, coord, filters, size,
       psf = next(comp for comp in comps if len(comp) == 3)
       loc = (psf[0], psf[1])
    # Produce output image.
-   disp_galfitm(inputdir=path, outputdir=path, save=True, name=imname,
+   disp_galfitm(inputdir=path, outputdir=path, save=False, name=imname,
                scale=scale[0], errmap=errmap, loc=loc, **kwargs)
    
    # Back up relevant files.
