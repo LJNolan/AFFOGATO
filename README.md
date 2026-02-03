@@ -1,2 +1,2 @@
 # AFFOGATO
-gAlactic Faint Feature extractiOn with GALFIT-bAsed Tools in pythOn
+gAlactic Faint Feature extractiOn with GALFITM-bAsed Tools in pythOn

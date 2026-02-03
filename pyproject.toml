@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=80", "setuptools-scm[simple]>=8"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+local_scheme = "no-local-version"
+
+[project]
+name = "affogato"
+dynamic = ["version"]
+dependencies = [
+    "astropy",
+    "astroquery",
+    "matplotlib",
+    "numpy",
+    "photutils",
+    "scipy",
+    'urllib',
+]
+authors = [
+  { name="Liam Nolan", email="liamjn2@illinois.edu" },
+]
+description = "Python wrapper for GALFITM"
+readme = "README.md"
+requires-python = ">=3.11"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENSE*"]
+
+[tool.setuptools.packages.find]
+where = ["affogato"]
+
+[project.urls]
+Homepage = "https://github.com/LJNolan/AFFOGATO"
+Issues = "https://github.com/LJNolan/AFFOGATO/issues"

@@ -1,0 +1,14 @@
+EXAMPLE.GALFITM.CONSTRAINTS
+EXAMPLE.GALFITM.INPUT
+LICENSE
+README.md
+joss.txt
+pyproject.toml
+__pycache__/supernolan.cpython-311.pyc
+affogato/affogato.py
+affogato/supernolan.py
+affogato/affogato.egg-info/PKG-INFO
+affogato/affogato.egg-info/SOURCES.txt
+affogato/affogato.egg-info/dependency_links.txt
+affogato/affogato.egg-info/requires.txt
+affogato/affogato.egg-info/top_level.txt
