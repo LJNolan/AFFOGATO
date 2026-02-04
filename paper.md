@@ -24,8 +24,6 @@ affiliations:
 date: 20 June 2025
 bibliography: paper.bib
 
-# Optional fields if submitting to a AAS journal too, see this blog post:
-# https://blog.joss.theoj.org/2018/12/a-new-collaboration-with-aas-publishing
 aas-doi: 10.3847/1538-4357/adec95
 aas-journal: Astrophysical Journal
 ---
@@ -44,32 +42,35 @@ remain difficult to automate without external 'wrapper' programs.
 
 # Statement of need
 
-gAlactic Faint Feature extractiOn with GALFIT-bAsed Tools in pythOn (`AFFOGATO`)
+gAlactic Faint Feature extractiOn with GALFITM-bAsed Tools in pythOn (`AFFOGATO`)
 is a Python package which acts as a wrapper for the popular image decomposition
-tool `GALFITM` [@H{\"a}u{\ss}ler:2022; @Peng:2010] with a
-particular eye towards studies of AGN.  `GALFITM` is intentionally structured to
+tool `GALFITM` [@H{\"a}u{\ss}ler:2022] with a particular eye towards studies of
+AGN.  Initially written to wrap `GALFIT` [@Peng2002; @Peng:2010] in @Nolan2025,
+`AFFOGATO` has been updated to use the newer `GALFITM` to take advantage of a
+number of improvements, including the possibility for future users to incorporate
+multi-wavelength fitting.  `GALFIT` and `GALFITM` are intentionally structured to
 be automated using external scripts, as effective usage requires modelling begin
 with well-motivated initial guesses of model parameters (e.g., Sersic index and
-magnitude for a Service profile), and these can vary widely across different use
+magnitude for a Sersic profile), and these can vary widely across different use
 cases. However, some general functions are possible to write in Python, which has
 become the dominant language for most tasks in astronomy, especially for
 early-career scientists.
 
-`AFFOGATO` uses parameter estimation from the `photutils` package [@photutils] to
+`AFFOGATO` uses parameter estimation from the `photutils` package [@Bradley2025] to
 facilitate automatic "blind" usage of `GALFITM` without manual determination of
 initial guesses, and producing informative and aesthetically-pleasing figures (for
 an example, see \autoref[fig:example]). While manual fine-tuning remains necessary
 in general for high-confidence scientific results (and is possible using the same
-wrapper functions), this automation greatly
-speeds decomposition of medium to large samples of images. In addition to this
-general-use functionality, we include a specific example implementation for the
-study of AGN host galaxies with HST, which at its highest level only requires the
-user to specify the coordinates of an AGN and the desired filter and the utility
-automatically downloads the best archived HST data, an appropriate PSF model,
-performs the decomposition, and produces an appropriate figure.  This will enable
-extremely rapid analysis in studies interested in the underlying features of AGN host
-galaxies.  More generally, `AFFOGATO` acts as a well-documented entry point to
-development of one's own `GALFITM` wrapper in Python.
+wrapper functions), this automation greatly speeds decomposition of medium to large
+samples of images. In addition to this general-use functionality, we include a
+specific example implementation for the study of AGN host galaxies with HST, which
+at its highest level only requires the user to specify the coordinates of an AGN
+and the desired filter and the utility automatically downloads the best archived HST
+data and an appropriate PSF model, performs the decomposition, and produces an
+appropriate figure.  This will enable extremely rapid analysis in studies interested
+in the underlying features of AGN host galaxies.  More generally, `AFFOGATO` acts as
+a well-documented entry point to development of one's own `GALFITM` wrapper in
+Python.
 
 # Citations
 
