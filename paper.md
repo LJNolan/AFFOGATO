@@ -72,20 +72,6 @@ in the underlying features of AGN host galaxies.  More generally, `AFFOGATO` act
 a well-documented entry point to development of one's own `GALFITM` wrapper in
 Python.
 
-# Citations
-
-Citations to entries in paper.bib should be in
-[rMarkdown](http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html)
-format.
-
-If you want to cite a software repository URL (e.g. something on GitHub without a preferred
-citation) then you can do it with the example BibTeX entry below for @fidgit.
-
-For a quick reference, the following citation commands can be used:
-- `@author:2001`  ->  "Author et al. (2001)"
-- `[@author:2001]` -> "(Author et al., 2001)"
-- `[@author1:2001; @author2:2001]` -> "(Author1 et al., 2001; Author2 et al., 2002)"
-
 # Figures
 
 ![Example image output from AFFOGATO, obtainable with example script.\label{fig:example}](figure.png)
