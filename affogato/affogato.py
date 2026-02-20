@@ -1580,9 +1580,9 @@ def errmap_HST(file, box_size=100, purity=0.05, overlap=0.2, nbox_min=20):
 
    """
    #Get basic data from files  
-   image = get_pkg_data_filename(file)
-   data_sci = fits.getdata(image, ext=1)
-   data_wht = fits.getdata(image, ext=2)
+   with fits.open(file) as hdul:
+      data_sci = hdul[1].data
+      data_wht = hdul[2].data
    
    # Mask input data of connected exact zeroes - this is likely to
    # be outside the true image.

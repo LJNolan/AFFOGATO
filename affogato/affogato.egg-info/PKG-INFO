@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: affogato
-Version: 1.0.1.dev1
+Version: 1.0.2.dev0
 Summary: Python wrapper for GALFITM
 Author-email: Liam Nolan <liamjn2@illinois.edu>
 License-Expression: MIT
@@ -21,4 +21,4 @@ Requires-Dist: urllib
 Dynamic: license-file
 
 # AFFOGATO
-gAlactic Faint Feature extractiOn with GALFIT-bAsed Tools in pythOn
+gAlactic Faint Feature extractiOn with GALFITM-bAsed Tools in pythOn
