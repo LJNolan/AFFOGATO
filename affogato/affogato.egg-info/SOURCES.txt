@@ -7,6 +7,7 @@ paper.bib
 paper.md
 pyproject.toml
 __pycache__/supernolan.cpython-311.pyc
+affogato/.DS_Store
 affogato/__init__.py
 affogato/affogato.py
 affogato/supernolan.py

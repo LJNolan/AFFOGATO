@@ -44,7 +44,6 @@ from astropy.coordinates import SkyCoord
 from astropy import units as u
 from astropy.visualization import LogStretch, astropy_mpl_style
 from astropy.visualization.mpl_normalize import ImageNormalize
-from astropy.utils.data import get_pkg_data_filename
 from astropy.stats import sigma_clipped_stats, SigmaClip
 from astropy.convolution import convolve
 from astroquery.mast import Observations
@@ -272,8 +271,8 @@ def dataPull(file, ext=0):
       The data from the FITS file and extension.
 
    """
-   image = get_pkg_data_filename(file)
-   image_data = fits.getdata(image, ext=ext)
+   with fits.open(file) as hdul:
+      image_data = hdul[ext].data
    return image_data
 
 
