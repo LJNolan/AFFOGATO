@@ -148,9 +148,9 @@ def cut(filename, position, size, ext=1, outputdir=".", outputname=None):
 def run_galfitm(galpath='me', outputdir='.'):
    """
    Runs GALFITM off of the file "``outputdir``/input" in option 3 mode, which
-   creates a FITS image where each slice is a model component, called
-   "subcomps.fits". This will clear all previous runs, but will preserve the
-   fit log.  Use bkp_galfitm() to back up the run.
+   creates extensions to the FITS file where each extension is a component of
+   the fit. This will clear all previous runs, but will preserve the fit log.
+   Use bkp_galfitm() to back up the run.
 
    Parameters
    ----------
@@ -1915,7 +1915,7 @@ CBcc = CB_color_cycle # shortname
 # =============================================================================
 
 
-def automate(working_dir, coord, filters, size,
+def automate(working_dir, coord, filters, size, galpath='me',
              imname='galim.png', backupdir=None, bkpname=None,
              customDir=None, customParam=None, customCons=None, useError=False,
              double=False, center_psf=False, **kwargs):
@@ -1941,6 +1941,10 @@ def automate(working_dir, coord, filters, size,
    size : int or tuple of ints
       Size, in pixels, of cutout to make around target source. Int implies a
       square cutout.
+   
+   galpath : str, optional
+      Passed to run_galfitm().  The default is 'me', which uses the path on my
+      machine.
    
    imname : str, optional
       Name of output image. The default is 'galim.png'.
@@ -2028,7 +2032,7 @@ def automate(working_dir, coord, filters, size,
    if customCons is not None:
       custom_cons_file = '%s/%s' % (customDir, customCons)
       os.system('cp %s %s/constraints' % (custom_cons_file, working_dir))
-   run_galfitm(outputdir=path)
+   run_galfitm(galpath=galpath, outputdir=path)
    # If using a central PSF, check to center the radial profile on it.
    loc = (-1, -1)
    if double and center_psf:
@@ -2044,16 +2048,3 @@ def automate(working_dir, coord, filters, size,
       bkp_galfitm(backupdir, fromdir=path, name=bkpname, gal=True, inpt=False,
                   log=False, image=imname)
    return
-
-
-# =============================================================================
-# Scrap code begins here
-# =============================================================================
-filters = 'F160W' #F160W
-working_dir = 'testing'
-size = (200, 200)
-coord = SkyCoord(212.5857, 36.723, frame='icrs', unit='deg')
-# 212.5857, 36.723 is my best AGN with spiral arms, but produces an odd fig
-automate(working_dir, coord, filters, size, backupdir='backup',
-         bkpname='test', useError=True, double=True, center_psf=True, 
-         masking=True, psfsub=True, radprof=True, flx=False, radfrac=0.3)
