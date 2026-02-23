@@ -59,18 +59,25 @@ early-career scientists.
 `AFFOGATO` uses parameter estimation from the `photutils` package [@Bradley2025] to
 facilitate automatic "blind" usage of `GALFITM` without manual determination of
 initial guesses, and producing informative and aesthetically-pleasing figures (for
-an example, see \autoref[fig:example]). While manual fine-tuning remains necessary
-in general for high-confidence scientific results (and is possible using the same
-wrapper functions), this automation greatly speeds decomposition of medium to large
-samples of images. In addition to this general-use functionality, we include a
-specific example implementation for the study of AGN host galaxies with HST, which
-at its highest level only requires the user to specify the coordinates of an AGN
-and the desired filter and the utility automatically downloads the best archived HST
-data and an appropriate PSF model, performs the decomposition, and produces an
-appropriate figure.  This will enable extremely rapid analysis in studies interested
-in the underlying features of AGN host galaxies.  More generally, `AFFOGATO` acts as
-a well-documented entry point to development of one's own `GALFITM` wrapper in
-Python.
+an example, see \autoref[fig:example]). In brief, `AFFOGATO` is able to:
+
+ - Download target image data
+ - Determine and download appropriate "stock" PSF model
+ - Perform 2D image decomposition
+ - Output best-fit parameters
+ - Plot science-ready figures
+
+While manual fine-tuning remains necessary in general for high-confidence scientific
+results (and is possible using the same wrapper functions), this automation greatly
+speeds decomposition of medium to large samples of images. In addition to this
+general-use functionality, we include a specific example implementation for the
+study of AGN host galaxies with HST, which at its highest level only requires the
+user to specify the coordinates of an AGN and the desired filter and the utility
+automatically downloads the best archived HST data and an appropriate PSF model,
+performs the decomposition, and produces an appropriate figure.  This will enable
+extremely rapid analysis in studies interested in the underlying features of AGN
+host galaxies.  More generally, `AFFOGATO` acts as a well-documented entry point to
+development of one's own `GALFITM` wrapper in Python.
 
 # Figures
 
