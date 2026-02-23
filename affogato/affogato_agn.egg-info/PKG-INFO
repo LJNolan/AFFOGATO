@@ -1,5 +1,5 @@
 Metadata-Version: 2.4
-Name: affogato
+Name: affogato-agn
 Version: 1.0.3.post1
 Summary: Python wrapper for GALFITM
 Author-email: Liam Nolan <liamjn2@illinois.edu>
@@ -17,7 +17,6 @@ Requires-Dist: matplotlib
 Requires-Dist: numpy
 Requires-Dist: photutils
 Requires-Dist: scipy
-Requires-Dist: urllib
 Dynamic: license-file
 
 # AFFOGATO
