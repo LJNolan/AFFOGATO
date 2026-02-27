@@ -1,7 +1,7 @@
 # `AFFOGATO`
 gAlactic Faint Feature extractiOn with GALFITM-bAsed Tools in pythOn
 
-Used in [Nolan et al., 2025](https://iopscience.iop.org/article/10.3847/1538-4357/adec95) and submitted separately to JOSS. [The example file](example.ipynb) should work in an environment installed with `Jupyter` and `affogato-agn` - I use Conda, and add conda-nb-kernels to the environment setup and install `affogato-agn` separately with `pip`.
+Used in [Nolan et al., 2025](https://iopscience.iop.org/article/10.3847/1538-4357/adec95) and submitted separately to JOSS. [The example file](example.ipynb) should work in an environment installed with `Jupyter` and `affogato-agn` - I use Conda, and add nb_conda_kernels to the environment setup and install `affogato-agn` separately with `pip`.
 
 Note that the distribution name of the package is `adffogato-an` but the import name is `affogato`.  This does render it incompatible with the `affogato` package, so do not install it (it predates this package, so this is unavoidable).
 
