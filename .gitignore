@@ -1,0 +1,8 @@
+testing/
+dist/
+.ipynb_checkpoints/
+affogato/*.egg-info/
+affogato_agn.egg-info/
+dist/
+build/
+.DS_Store
