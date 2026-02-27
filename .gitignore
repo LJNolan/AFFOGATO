@@ -3,6 +3,7 @@ dist/
 .ipynb_checkpoints/
 affogato/*.egg-info/
 affogato_agn.egg-info/
+affogato/.DS_Store
 dist/
 build/
 .DS_Store
