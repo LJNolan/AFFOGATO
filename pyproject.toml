@@ -30,8 +30,8 @@ classifiers = [
 license = "MIT"
 license-files = ["LICENSE*"]
 
-[tool.setuptools.packages.find]
-where = ["affogato"]
+[tool.setuptools]
+packages = ["affogato"]
 
 [project.urls]
 Homepage = "https://github.com/LJNolan/AFFOGATO"
