@@ -56,12 +56,16 @@ cases. However, some general functions are possible to write in Python, which ha
 become the dominant language for most tasks in astronomy, especially for
 early-career scientists.
 
-`AFFOGATO` uses parameter estimation from the `photutils` package [@Bradley2025] to
-facilitate automatic "blind" usage of `GALFITM` without manual determination of
-initial guesses, and producing informative and aesthetically-pleasing figures (for
-an example, see \autoref[fig:example]). In brief, `AFFOGATO` is able to:
+`AFFOGATO` uses parameter estimation from the `photutils` package [@Bradley2025]
+in two stages to facilitate automatic "blind" usage of `GALFITM` without manual
+determination of initial guesses; first using `photutils.segmentation` to mask
+contaminants (other non-overlapping sources) in two rounds, and second to estimate
+centroid positions, Kron fluxes, half-light radii, and ellipticity of remaining
+sources.  After passing these parameters to and running `GALFITM`, `AFFOGATO`
+produces informative and aesthetically-pleasing figures (for an example, see
+\autoref[fig:example]). In brief, `AFFOGATO` is able to:
 
- - Download target image data
+ - Download target image data from *Hubble Space Telescope* (*HST*) archives
  - Determine and download appropriate "stock" PSF model
  - Perform 2D image decomposition
  - Output best-fit parameters
@@ -71,17 +75,19 @@ While manual fine-tuning remains necessary in general for high-confidence scient
 results (and is possible using the same wrapper functions), this automation greatly
 speeds decomposition of medium to large samples of images. In addition to this
 general-use functionality, we include a specific example implementation for the
-study of AGN host galaxies with HST, which at its highest level only requires the
+study of AGN host galaxies with *HST*, which at its highest level only requires the
 user to specify the coordinates of an AGN and the desired filter and the utility
-automatically downloads the best archived HST data and an appropriate PSF model,
-performs the decomposition, and produces an appropriate figure.  This will enable
-extremely rapid analysis in studies interested in the underlying features of AGN
-host galaxies.  More generally, `AFFOGATO` acts as a well-documented entry point to
-development of one's own `GALFITM` wrapper in Python.
+automatically downloads the best archived *HST* data and an appropriate point-spread
+function (PSF) model[^psf], performs the decomposition, and produces an appropriate
+figure. This will enable extremely rapid analysis in studies interested in the
+underlying features of AGN host galaxies.  More generally, `AFFOGATO` acts as a
+well-documented entry point to development of one's own `GALFITM` wrapper in Python,
+providing all the utility functions one would need to interact with relevant
+input/output files and run the executable, all accessible through `pip` installation.
 
 # Figures
 
-![Example image output from AFFOGATO, obtainable with example script.\label{fig:example}](figure.png)
+![Example image output from AFFOGATO, obtainable with example script. Panels from left to right: 1) input image stamp of target source, 2) `GALFITM` model image, 3) input image, with PSF component of the `GALFITM` model subtracted, with the intention of showing the host galaxy without its AGN component, 4) residual image, the input image with the `GALFITM` model subtracted, intending to show the faint, non-axisymmetric components of the galaxy, such as faint spiral arms visible here, and 5) radial profile of image components and error between model and real data.  Many of these components (and a few not shown) can be toggled on and off using the supplied functions.\label{fig:example}](figure.png)
 
 # Acknowledgements
 
@@ -89,6 +95,16 @@ This material is based on work supported by the National Science Foundation
 Graduate Research Fellowship Program under grant No. DGE 21-46756. Any opinions,
 findings, and conclusions or recommendations expressed in this material are those
 of the author(s) and do not necessarily reflect the views of the National Science
-Foundation. 
+Foundation.
+
+[^psf]: While we mention PSF-selection briefly, those familiar with *HST* PSF modelling
+will know that this is a non-trivial task, as the *HST* PSF changes over time due to a
+'breathing' effect. It is very common to use dedicated observations of well-isolated
+stars to develop a PSF model well-suited to one's science target, as many *HST* fields
+are too crowded to contain a coincidental star for this purpose. We wrote the high-level
+example pipeline to be as hand-off as possible for the purpose of quick visual analysis
+of a target, and so refer to the [standard array of PSFs in the *HST* archive](https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf). We do not
+recommend using this PSF model for reliable science results, and instead recommend
+producing one's own PSF model appropriate for their targets and scientific purpose.
 
 # References
