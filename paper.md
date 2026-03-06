@@ -89,6 +89,8 @@ input/output files and run the executable, all accessible through `pip` installa
 
 ![Example image output from AFFOGATO, obtainable with example script. Panels from left to right: 1) input image stamp of target source, 2) `GALFITM` model image, 3) input image, with PSF component of the `GALFITM` model subtracted, with the intention of showing the host galaxy without its AGN component, 4) residual image, the input image with the `GALFITM` model subtracted, intending to show the faint, non-axisymmetric components of the galaxy, such as faint spiral arms visible here, and 5) radial profile of image components and error between model and real data.  Many of these components (and a few not shown) can be toggled on and off using the supplied functions.\label{fig:example}](figure.png)
 
+*Example image output from AFFOGATO, obtainable with example script. Panels from left to right: 1) input image stamp of target source, 2) `GALFITM` model image, 3) input image, with PSF component of the `GALFITM` model subtracted, with the intention of showing the host galaxy without its AGN component, 4) residual image, the input image with the `GALFITM` model subtracted, intending to show the faint, non-axisymmetric components of the galaxy, such as faint spiral arms visible here, and 5) radial profile of image components and error between model and real data.  Many of these components (and a few not shown) can be toggled on and off using the supplied functions.*
+
 # Acknowledgements
 
 This material is based on work supported by the National Science Foundation
