@@ -76,14 +76,15 @@ results (and is possible using the same wrapper functions), this automation grea
 speeds decomposition of medium to large samples of images. In addition to this
 general-use functionality, we include a specific example implementation for the
 study of AGN host galaxies with *HST*, which at its highest level only requires the
-user to specify the coordinates of an AGN and the desired filter and the utility
-automatically downloads the best archived *HST* data and an appropriate point-spread
-function (PSF) model (see below), performs the decomposition, and produces an appropriate
-figure. This will enable extremely rapid analysis in studies interested in the
-underlying features of AGN host galaxies.  More generally, `AFFOGATO` acts as a
-well-documented entry point to development of one's own `GALFITM` wrapper in Python,
-providing all the utility functions one would need to interact with relevant
-input/output files and run the executable, all accessible through `pip` installation.
+user to specify the coordinates of an AGN and the desired filter (in Wide Field Camera
+3) and the utility automatically downloads the best archived *HST* data and an
+appropriate point-spread function (PSF) model (see below), performs the decomposition,
+and produces an appropriate figure. This will enable extremely rapid analysis in
+studies interested in the underlying features of AGN host galaxies.  More generally,
+`AFFOGATO` acts as a well-documented entry point to development of one's own `GALFITM`
+wrapper in Python, providing all the utility functions one would need to interact with
+relevant input/output files and run the executable, all accessible through `pip`
+installation.
 
 # PSF Details
 
@@ -93,7 +94,9 @@ will know that this is a non-trivial task, as the *HST* PSF changes over time du
 stars to develop a PSF model well-suited to one's science target, as many *HST* fields
 are too crowded to contain a coincidental star for this purpose. We wrote the high-level
 example pipeline to be as hand-off as possible for the purpose of quick visual analysis
-of a target, and so refer to the [standard array of PSFs in the *HST* archive](https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf). We do not
+of a target, and so refer to the [standard array of PSFs in the *HST* archive](https://www.stsci.edu/hst/instrumentation/wfc3/data-analysis/psf). Specifically,
+we use the central PSF of each array, as it is impractical (if not impossible) to
+determine on-chip position of a source in a drizzled image. We do not
 recommend using this PSF model for reliable science results, and instead recommend
 producing one's own PSF model appropriate for their targets and scientific purpose -- 
 the component functions in `AFFOGATO` are structured to be used in this way, other
