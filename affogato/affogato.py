@@ -381,7 +381,6 @@ def make_galfitm_input(img_size, zp, img_scale, sky, comps, outputdir=".",
         my experience not rounding just gives a bunch of useless zeroes. If you
         don't want this, just find-replace '%0.2f' -> '%f'
       * There is a file 'psf.fits' in the output directory for PSF convolution
-      * The PSF fine sampling factor (E) is 3 (easy to change)
 
    """
    os.system("cd %s ; rm -f input" % outputdir)
