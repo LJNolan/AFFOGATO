@@ -415,14 +415,16 @@ W) input,model,residual,component      # Output options
 
    string_psf = """
  0) psf                # object type
- 1) %0.2f %0.2f  1 1  # position x, y        [pixel]
+ 1) %0.2f  1    # position x [pixel]  (constant with wavelength)
+ 2) %0.2f  1    # position y [pixel]
  3) %0.2f     1        # total magnitude
  Z) 0                  #  Skip this model in output image?  (yes=1, no=0)
  """
 
    string_galaxy = """
  0) %s             # object type
- 1) %0.2f %0.2f  1 1  # position x, y        [pixel]
+ 1) %0.2f  1    # position x [pixel]  (constant with wavelength)
+ 2) %0.2f  1    # position y [pixel]
  3) %0.2f     1        # total magnitude
  4) %0.2f     1        # effective radius
  5) %0.2f      1        # index
@@ -1758,10 +1760,6 @@ def seek_data(coord, todir, **kwargs):
                print('Trying next file...')
             continue
       break
-   # compare obs_collection, obs_id, project, and proposal_id
-   #manifest = Observations.download_products(data_products,
-   #                                          download_dir=todir, flat=True,
-   #                                          productType="SCIENCE")
    return file_path
 
 
