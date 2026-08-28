@@ -4,4 +4,4 @@ astropy
 photutils
 scipy
 sphinx>=8,<10
-sphinx-rtd-theme`
+sphinx-rtd-theme
